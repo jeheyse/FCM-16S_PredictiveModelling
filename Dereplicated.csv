@@ -1,0 +1,89 @@
+bins;Domain;Phylum;Classis;Ordo;Familia;Genus;Species;percent_completion;percent_redundancy;total_length;num_contigs;N50;GC_content;Sample;Tool;SubsampleLevel
+CO_CONCOCT_100_Bin_00002;Bacteria;Proteobacteria;Alphaproteobacteria;Rhizobiales;Devosiaceae;Maritalea;X;100,00;0,00;3437290;65;228360;49,84;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00017;Bacteria;Myxococcota;Polyangia;Nannocystales;Nannocystaceae;X;X;100,00;4,23;7345756;1362;6374;67,57;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00002;Bacteria;Proteobacteria;Alphaproteobacteria;Caulobacterales;Hyphomonadaceae;Hyphomonas;X;100,00;0,00;3275865;64;100433;61,63;CO;CONCOCT;60
+S41_VIZBIN_60_Bin_00002;Bacteria;Proteobacteria;Gammaproteobacteria;HTCC5015;X;X;X;100,00;0,00;2740159;59;86228;51,79;S41;VIZBIN;60
+S42_VIZBIN_100_Bin_00001;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Nioella;X;100,00;1,41;4270397;81;80111;63,54;S42;VIZBIN;100
+S47_VIZBIN_60_Bin_00001;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Pseudohongiellaceae;UBA9145;X;100,00;0,00;3679976;127;46870;56,61;S47;VIZBIN;60
+S48_VIZBIN_100_Bin_00002;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Litoricolaceae;Litoricola;X;100,00;0,00;2177635;38;274702;50,92;S48;VIZBIN;100
+S48_VIZBIN_60_Bin_00001;Bacteria;Proteobacteria;Gammaproteobacteria;Xanthomonadales;Wenzhouxiangellaceae;X;X;100,00;0,00;4164530;31;410504;51,43;S48;VIZBIN;60
+S49_VIZBIN_100_Bin_00002;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Dinoroseobacter;X;100,00;1,41;3497670;174;33340;69,85;S49;VIZBIN;100
+S55_VIZBIN_100_Bin_00001;Bacteria;Proteobacteria;Gammaproteobacteria;Enterobacterales;Vibrionaceae;Vibrio;Vibrio coralliilyticus;100,00;0,00;5525214;49;236832;45,65;S55;VIZBIN;100
+S56_VIZBIN_60_Bin_00002;Bacteria;Bacteroidota;Bacteroidia;Chitinophagales;Saprospiraceae;Phaeodactylibacter;X;100,00;1,41;7299569;199;62093;52,41;S56;VIZBIN;60
+S61_VIZBIN_100_Bin_00003;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Halieaceae;X;X;100,00;0,00;4367733;85;92399;59,05;S61;VIZBIN;100
+S61_VIZBIN_60_Bin_00001;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Saccharospirillaceae;Bacterioplanes;X;100,00;0,00;4183385;57;91606;53,57;S61;VIZBIN;60
+S61_VIZBIN_60_Bin_00003;Bacteria;Bacteroidota;Bacteroidia;Flavobacteriales;Cryomorphaceae;UBA7878;X;100,00;0,00;3549769;28;216822;44,15;S61;VIZBIN;60
+CO_CONCOCT_100_Bin_00006;Bacteria;Proteobacteria;Gammaproteobacteria;Coxiellales;X;X;X;98,59;0,00;2427527;59;96304;47,90;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00013;Bacteria;Planctomycetota;UBA1135;UBA2386;UBA2386;GCA-2684655;X;98,59;1,41;6481221;196;54323;70,62;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00014;Bacteria;Verrucomicrobiota;Verrucomicrobiae;Opitutales;Opitutaceae;UBA6669;X;98,59;1,41;3699544;150;40959;61,78;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00015;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Roseobacter;X;98,59;1,41;2840861;95;45668;59,99;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00005;Bacteria;Bdellovibrionota;Bacteriovoracia;Bacteriovoracales;Bacteriovoracaceae;X;X;98,59;0,00;4033779;48;119370;38,67;CO;CONCOCT;60
+CO_CONCOCT_60_Bin_00013;Bacteria;Myxococcota;UBA6777;UBA6777;UBA6777;X;X;98,59;2,82;7073639;124;88781;52,24;CO;CONCOCT;60
+CO_METABAT_100_Bin_00005;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Cellvibrionaceae;GCA-2707785;X;98,59;0,00;7870727;160;99080;53,57;CO;METABAT;100
+CO_METABAT_100_Bin_00007;Bacteria;Proteobacteria;Alphaproteobacteria;Rickettsiales;X;X;X;98,59;0,00;1590634;24;109628;40,74;CO;METABAT;100
+CO_METABAT_100_Bin_00016;Bacteria;Bacteroidota;Bacteroidia;Cytophagales;Microscillaceae;Microscilla;X;98,59;4,23;9833285;274;65275;40,42;CO;METABAT;100
+S41_VIZBIN_60_Bin_00004;Bacteria;Proteobacteria;Alphaproteobacteria;X;X;X;X;98,59;1,41;4425194;259;26302;62,05;S41;VIZBIN;60
+CO_CONCOCT_100_Bin_00008;Bacteria;Bacteroidota;Bacteroidia;Chitinophagales;Saprospiraceae;X;X;97,18;0,00;7591526;770;13876;38,20;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00022;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;UBA5518;X;X;97,18;1,41;5005151;296;26071;52,72;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00025;Bacteria;Proteobacteria;Alphaproteobacteria;Nisaeales;Nisaeaceae;Nisaea;X;97,18;2,82;3802124;360;15608;64,35;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00008;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Pseudohongiellaceae;Pseudohongiella;X;97,18;0,00;2755960;164;46190;52,17;CO;CONCOCT;60
+CO_CONCOCT_60_Bin_00012;Bacteria;Bacteroidota;Bacteroidia;NS11-12g;UBA9320;UBA987;X;97,18;1,41;3774391;22;280674;43,16;CO;CONCOCT;60
+CO_CONCOCT_60_Bin_00014;Bacteria;Bacteroidota;Bacteroidia;X;X;X;X;97,18;1,41;5332454;106;86618;37,22;CO;CONCOCT;60
+CO_METABAT_100_Bin_00011;Bacteria;Proteobacteria;Alphaproteobacteria;Caulobacterales;Maricaulaceae;Hyphobacterium;X;97,18;1,41;2637562;265;13209;63,40;CO;METABAT;100
+S7_VIZBIN_100_Bin_00001;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Pseudooceanicola;Pseudooceanicola nitratireducens;97,18;2,82;3273761;416;9812;64,91;S7;VIZBIN;100
+CO_CONCOCT_100_Bin_00018;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Marivivens;X;95,77;0,00;2682469;451;7385;57,04;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00023;Bacteria;Proteobacteria;Gammaproteobacteria;Enterobacterales;Alteromonadaceae;Glaciecola;X;95,77;0,00;2164293;74;65843;44,77;CO;CONCOCT;100
+S13_VIZBIN_100_Bin_00003;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Saccharospirillaceae;Oleibacter;X;95,77;1,41;3100060;142;39709;53,40;S13;VIZBIN;100
+S54_VIZBIN_60_Bin_00003;Bacteria;Bdellovibrionota;Bacteriovoracia;Bacteriovoracales;Bacteriovoracaceae;GCA-2712005;X;95,77;0,00;3745637;157;38015;35,86;S54;VIZBIN;60
+S56_VIZBIN_100_Bin_00005;Bacteria;Bacteroidota;Rhodothermia;Balneolales;Balneolaceae;UBA1275;X;95,77;0,00;2672238;136;35223;40,89;S56;VIZBIN;100
+CO_CONCOCT_100_Bin_00027;Bacteria;Margulisbacteria;ZB3;UBA817;AAA071-K20;X;X;94,37;0,00;2129271;57;103717;41,87;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00028;Bacteria;Verrucomicrobiota_A;Chlamydiia;Parachlamydiales;GCA-2709385;X;X;94,37;1,41;2695794;57;78316;53,00;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00030;Bacteria;Proteobacteria;Alphaproteobacteria;UBA7879;X;X;X;94,37;1,41;1255638;42;50036;36,94;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00031;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Halieaceae;Haliea;Haliea sp002416125;94,37;1,41;3089549;182;29099;63,31;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00032;Bacteria;Proteobacteria;Alphaproteobacteria;Caulobacterales;Hyphomonadaceae;Hyphomonas;X;94,37;1,41;2629241;554;5530;61,81;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00022;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Thalassococcus;Thalassococcus halodurans;94,37;0,00;3614179;140;43474;57,89;CO;CONCOCT;60
+CO_METABAT_60_Bin_00015;Bacteria;Proteobacteria;Alphaproteobacteria;Sphingomonadales;Sphingomonadaceae;Erythrobacter;Erythrobacter sp000714765;94,37;0,00;3171331;163;42651;61,87;CO;METABAT;60
+CO_METABAT_60_Bin_00017;Bacteria;Bacteroidota;Bacteroidia;Chitinophagales;Saprospiraceae;X;X;94,37;0,00;5534476;266;32581;51,33;CO;METABAT;60
+CO_METABAT_60_Bin_00019;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Roseovarius;X;94,37;1,41;3783391;93;56163;64,81;CO;METABAT;60
+S6_VIZBIN_100_Bin_00001;Bacteria;Bacteroidota;Bacteroidia;Flavobacteriales;Flavobacteriaceae;Gilvibacter;Gilvibacter sp002163875;94,37;1,41;2796248;154;33740;43,84;S6;VIZBIN;100
+CO_CONCOCT_100_Bin_00035;Bacteria;Proteobacteria;Gammaproteobacteria;UBA12402;UBA12402;X;X;92,96;0,00;2591651;90;48227;41,60;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00037;Bacteria;Bacteroidota;Bacteroidia;Chitinophagales;Saprospiraceae;X;X;92,96;0,00;4919170;484;16193;46,80;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00043;Bacteria;Myxococcota;UBA6777;UBA6777;UBA6777;X;X;92,96;4,23;7231845;1199;7695;52,63;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00039;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;X;X;92,96;4,23;1949115;394;5885;56,46;CO;CONCOCT;60
+CO_CONCOCT_60_Bin_00040;Bacteria;Planctomycetota;Planctomycetes;Planctomycetales;Planctomycetaceae;Fuerstia;X;92,96;4,23;7070839;100;119176;56,28;CO;CONCOCT;60
+CO_METABAT_100_Bin_00034;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Marinomonadaceae;X;X;92,96;2,82;3355061;528;7121;47,08;CO;METABAT;100
+S13_VIZBIN_100_Bin_00003;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Saccharospirillaceae;Oleibacter;X;92,96;8,45;2588362;453;7460;53,92;S13;VIZBIN;100
+S54_VIZBIN_100_Bin_00008;Bacteria;Proteobacteria;Alphaproteobacteria;Rhizobiales;Cohaesibacteraceae;Cohaesibacter;X;92,96;1,41;4055549;614;8298;51,43;S54;VIZBIN;100
+S56_VIZBIN_100_Bin_00008;Bacteria;Proteobacteria;Gammaproteobacteria;Xanthomonadales;Wenzhouxiangellaceae;X;X;92,96;0,00;4012437;97;61385;50,78;S56;VIZBIN;100
+S61_VIZBIN_60_Bin_00010;Bacteria;Proteobacteria;Alphaproteobacteria;Caulobacterales;Maricaulaceae;X;X;92,96;0,00;3200423;17;355417;62,30;S61;VIZBIN;60
+CO_CONCOCT_100_Bin_00038;Bacteria;Proteobacteria;Alphaproteobacteria;Sphingomonadales;Kordiimonadaceae;X;X;91,55;0,00;2984797;318;13097;46,33;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00042;Bacteria;Verrucomicrobiota;Verrucomicrobiae;Verrucomicrobiales;Akkermansiaceae;SW10;X;91,55;2,82;4346870;682;8081;58,84;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00030;Bacteria;Cyanobacteria;Vampirovibrionia;Vampirovibrionales;X;X;X;91,55;0,00;1990769;114;25826;47,64;CO;CONCOCT;60
+CO_CONCOCT_60_Bin_00042;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Halieaceae;Halioglobus;X;91,55;4,23;3304103;566;7687;62,43;CO;CONCOCT;60
+S51_VIZBIN_100_Bin_00002;Bacteria;Firmicutes;Bacilli;Lactobacillales;Lactobacillaceae;X;X;91,55;4,23;1219501;166;9550;42,87;S51;VIZBIN;100
+S6_VIZBIN_100_Bin_00003;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Pseudohongiellaceae;UBA9145;X;91,55;2,82;3692926;127;50977;52,86;S6;VIZBIN;100
+CO_CONCOCT_100_Bin_00041;Bacteria;Patescibacteria;Gracilibacteria;UBA1369;LOWO2-01-FULL-3;X;X;90,14;0,00;1237531;8;204844;36,88;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00047;Bacteria;Proteobacteria;Gammaproteobacteria;Legionellales;X;X;X;90,14;2,82;2678738;443;7485;41,37;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00038;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Halieaceae;Halioglobus;X;90,14;1,41;4195010;563;9879;63,95;CO;CONCOCT;60
+CO_CONCOCT_60_Bin_00044;Bacteria;Bdellovibrionota;Bacteriovoracia;Bacteriovoracales;Bacteriovoracaceae;GCA-2712005;X;90,14;2,82;3134218;535;7206;41,71;CO;CONCOCT;60
+CO_METABAT_60_Bin_00034;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Pseudomonadaceae;Pseudomonas_A;Pseudomonas_A balearica;90,14;4,23;4109634;26;217469;65,21;CO;METABAT;60
+S41_VIZBIN_60_Bin_00007;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;X;X;90,14;1,41;4006373;80;74953;61,70;S41;VIZBIN;60
+CO_CONCOCT_100_Bin_00052;Bacteria;Bdellovibrionota;Bdellovibrionia;Bdellovibrionales;UBA840;UBA6502;X;88,73;4,23;3114759;424;9892;38,26;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00050;Bacteria;Bacteroidota;Bacteroidia;Chitinophagales;Saprospiraceae;X;X;87,32;1,41;9143565;1487;7505;34,61;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00048;Bacteria;Bacteroidota;Bacteroidia;Flavobacteriales;Flavobacteriaceae;Muricauda;X;85,92;0,00;3381622;197;27209;40,92;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00051_1;Bacteria;Patescibacteria;ABY1;Magasanikbacterales;UBA922;1-14-0-20-39-34;X;85,92;0,00;1014699;8;211566;42,37;CO;CONCOCT;100
+S6_VIZBIN_60_Bin_00004;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;GCA-2706605;GCA-2706605 sp002706605;85,92;2,82;2613622;479;6478;61,26;S6;VIZBIN;60
+CO_METABAT_100_Bin_00050;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;X;X;84,51;4,23;3512309;230;21939;61,11;CO;METABAT;100
+CO_CONCOCT_60_Bin_00052;Bacteria;Myxococcota;Bradimonadia;UBA7976;UBA1532;X;X;83,10;1,41;6606583;1488;4930;66,97;CO;CONCOCT;60
+CO_CONCOCT_100_Bin_00059;Bacteria;Firmicutes;Bacilli;Bacillales;Bacillaceae;Bacillus;Bacillus pumilus;81,69;0,00;3577578;301;19670;41,17;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00063;Bacteria;Proteobacteria;Alphaproteobacteria;UBA7879;UBA7879;X;X;80,28;1,41;837124;200;4574;38,13;CO;CONCOCT;100
+CO_CONCOCT_100_Bin_00068;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Marivita;X;80,28;4,23;5688194;381;38887;59,45;CO;CONCOCT;100
+CO_METABAT_60_Bin_00043;Bacteria;Patescibacteria;Gracilibacteria;BD1-5;UBA6164;X;X;80,28;0,00;976503;156;7394;27,46;CO;METABAT;60
+S48_VIZBIN_100_Bin_00008;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Marivita;X;80,28;2,82;3558346;151;36706;62,03;S48;VIZBIN;100
+CO_CONCOCT_100_Bin_00069;Bacteria;Proteobacteria;Gammaproteobacteria;Thiomicrospirales;Thiomicrospiraceae;Hydrogenovibrio;Hydrogenovibrio sp000711305;77,46;1,41;2129765;403;6201;50,36;CO;CONCOCT;100
+CO_METABAT_100_Bin_00052;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Pseudooceanicola;X;77,46;0,00;3126823;56;99715;60,82;CO;METABAT;100
+CO_METABAT_100_Bin_00057;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Spongiibacteraceae;Spongiibacter;Spongiibacter sp002306875;77,46;1,41;3054763;200;22141;55,87;CO;METABAT;100
+CO_CONCOCT_100_Bin_00076;Bacteria;Proteobacteria;Gammaproteobacteria;Pseudomonadales;Saccharospirillaceae;Bacterioplanes;X;76,06;4,23;2997697;640;5168;52,84;CO;CONCOCT;100
+CO_CONCOCT_60_Bin_00070;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;X;X;76,06;4,23;3741229;257;18279;61,77;CO;CONCOCT;60
+CO_METABAT_60_Bin_00055;Bacteria;Proteobacteria;Alphaproteobacteria;Rhodobacterales;Rhodobacteraceae;Pseudooceanicola;Pseudooceanicola atlanticus;76,06;4,23;4513991;469;13277;64,31;CO;METABAT;60
+S51_VIZBIN_60_Bin_00004;Bacteria;Proteobacteria;Gammaproteobacteria;Enterobacterales;Vibrionaceae;Vibrio;Vibrio alginolyticus;76,06;1,41;4729521;439;17177;45,02;S51;VIZBIN;60
