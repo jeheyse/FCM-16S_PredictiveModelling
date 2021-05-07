@@ -29,6 +29,7 @@ The final file structure should be:
 ├── ConvenienceFunctions.R
 ├── /Metadata
 ├── /Results
+    ├── /GMMFits
 ├── /Data
     ├── /Aquaculture
 	    ├── FCM
