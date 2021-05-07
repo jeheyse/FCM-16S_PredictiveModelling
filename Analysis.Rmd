@@ -1,0 +1,2961 @@
+---
+title: <font size="6">Analysis</font>
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    keep_md: yes
+    theme: flatly
+    toc: yes
+    number_sections: true
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+      toc_depth: 4
+editor_options:
+  chunk_output_type: console
+bibliography: bibliography.bib
+csl: CitationStyle.csl
+---
+
+<style>
+#TOC {
+  margin: 15px 0px 15px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+.toc-content {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+div.tocify {
+  width: 20%;
+  max-width: 700px;
+  max-height: 85%;
+}
+  body {text-align: justify}
+  .main-container {max-width: 2100px !important;}
+  code.r{ font-size: 11px; }
+  pre{ font-size: 15px }
+  pre code, pre, code {
+  white-space: pre !important;
+  overflow-x: scroll !important;
+  word-break: keep-all !important;
+  word-wrap: initial !important;
+}
+</style>
+
+```{r Setup, include = FALSE}
+knitr::opts_chunk$set(eval = TRUE, 
+                      echo = TRUE, 
+                      cache = TRUE,
+                      include = TRUE,
+                      collapse = FALSE,
+                      dependson = NULL,
+                      warning = FALSE,
+                      engine = "R",
+                      error = TRUE,
+                      fig.align = "center",
+                      cache.lazy = FALSE)
+```
+
+
+```{r WorkingDirectory, echo = FALSE, message = FALSE}
+setwd("/Projects2/Jasmine/FCM-16S_PredictiveModelling")
+```
+
+# Load libraries and functions
+
+```{r LoadLibraries, message = FALSE, warning = FALSE}
+# Packages
+library("UBL")
+library("Phenoflow")
+library("plyr")
+library("dplyr")
+library("ggplot2")
+library("gridExtra")
+library("grid")
+library("RColorBrewer")
+library("grid")
+library("tidyr")
+library("reshape2")
+library("gganimate")
+library("gifski")
+library("ellipse")
+library("glmnet")
+library("mboost")
+library("openxlsx")
+library("stabs")
+library("stringr")
+library("cowplot")
+library("viridis")
+library("SpiecEasi")
+library("scales")   
+library("ggplot2")  
+library("plyr")     
+library("dplyr")
+library("tidyr")
+library("data.table")
+library("reshape2")
+library("vegan")
+library("phyloseq") 
+library("ape")      
+library("openxlsx") 
+library("readxl")   
+library("cowplot")
+library("boot")
+library("Biostrings")
+library("htmltools")
+library("CMETNGS")
+library("VennDiagram")
+library("adegenet")
+library("ggtree")
+library("stringr")
+library("knitr")
+library("stringdist")
+library("DECIPHER")
+library("dada2")
+library("seqinr")
+library("RColorBrewer")
+library("ggalluvial")
+library("ggfittext")
+library("otu2ot")
+library("DESeq2")
+library("igraph")
+library("UpSetR")
+library("tidyverse")
+library("caret")
+library("glmnet")
+library("randomForest")
+library("DMwR")
+library("stabs")
+library("lars")
+library("MultivariateRandomForest")
+library("FactoMineR")
+library("factoextra")
+library("corrplot")
+library("e1071")
+library("caretEnsemble")
+library("gbm")
+library("fastAdaboost")
+library("keras")
+library("RMTL")
+library("bst")
+library("xgboost")
+library("Cubist")
+library("h2o")
+library("kernlab")
+library("performance")
+library("pROC")
+library("ggpubr")
+library("ggcyto")
+
+set.seed(458)
+```
+
+```{r DefineColors, message = FALSE, warning = FALSE}
+# Define colors for plotting
+Colors <- c("#ff8b0f","#3a9679","#bc2a54", "#1e328a", "#edbe00", "#5f1280")
+ColorBlocksFacet <- c("#e0e0e0")
+Series16 <- c("#f5bdc5","#e65c6e", "#ba1822", "#750019", "#8f501b", "#bd7a28", "#f5af00", "#f2ff91", "#a1d179", "#53a358",  "#3a6e5b", "#3eb8a7", "#7581d1", "#091d9e", "#5c0778", "#a600a3")
+SingleColor <- c("#3c4175")
+SingleColor2 <- c("#5a7e48")
+
+# Load convenience funtions
+source("ConvenienceFunctions.R")
+mapeexpSummary <- function (data, lev = NULL, model = NULL) {
+  c(RMSE = sqrt(mean((data$obs - data$pred)^2)),
+  Rsquared = summary(lm(pred ~ obs, data))$r.squared,
+  MAE = mean(abs(data$obs - data$pred)),
+  MAEL = mean(abs(boot::inv.logit(data$obs) - boot::inv.logit(data$pred))),
+  RMSEL = sqrt(mean((boot::inv.logit(data$obs) - boot::inv.logit(data$pred))^2)),
+  RsquaredL = summary(lm(boot::inv.logit(pred) ~ boot::inv.logit(obs), data))$r.squared)
+  }
+```
+
+```{r Cores, message = FALSE, warning = FALSE}
+# Make R use multiple cores
+library(doParallel)
+cl <- makeCluster(35, type = "PSOCK")
+registerDoParallel(cl)
+```
+
+# Aquaculture dataset (main)
+
+## Recreate sorting gates on FACSVerse data
+
+### Load and process Influx data
+
+```{r Influx_Load, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Load the FCS files of the Influx
+Datapath <- c("./Data/Aquaculture/FCM/Influx/")
+fcsfiles <- list.files(path = Datapath, recursive = TRUE, pattern = ".fcs", full.names = TRUE)
+flowDataInflux <- flowCore::read.flowSet(files = fcsfiles, pattern = ".fcs")
+
+# Remove all variables that are no longer needed
+remove(Datapath, fcsfiles)
+```
+
+```{r Influx_transform, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Select phenotypic features of interest and transform parameters
+flowData_transformedInflux <- flowCore::transform(flowDataInflux,
+                                      `PMT 2` = log10(`PMT 2`), 
+                                      `PMT 3` = log10(`PMT 3`))
+flowData_transformedInflux <- flowData_transformedInflux[,c("PMT 2", "PMT 3")]
+
+# Remove all variables that are no longer needed
+remove(flowDataInflux)
+```
+
+```{r Influx_Gatecheck, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Bacterial population
+sqrcut1 <- log10(sinh(matrix(c(1.5, 5, 7, 9.8, 9.8, 1.5,
+                    2.9, 2.9, 4.25, 8, 10, 10),
+                    ncol = 2,
+                    nrow = 6)))  
+sqrcut1[!is.finite(sqrcut1)] <- 0
+colnames(sqrcut1) <- c("PMT 2", "PMT 3")
+polyGate_sort <- polygonGate(.gate = sqrcut1, filterId = "Total Cells")
+
+# Gating quality check
+print(xyplot(`PMT 3` ~ `PMT 2`, data = flowData_transformedInflux[11], 
+              filter = polyGate_sort,
+              scales = list(y = list(limits = c(0,4.1)),
+                            x = list(limits = c(0.2,4.1))),
+              axis = axis.default, 
+              xbin = 300,
+              nbin = 125, 
+              par.strip.text = list(col = "black", font = 3, cex = 0.75), 
+              smooth = FALSE,
+              par.settings = my.settings,
+              yscale.components = yscale.components.log10,
+              xscale.components = xscale.components.log10)) 
+
+
+# Remove all variables that are no longer needed
+remove(sqrcut1)
+```
+
+```{r Influx_Gating, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Count number of events inside this gate
+CellCount <- flowCore::filter(flowData_transformedInflux, polyGate_sort) 
+CellCount <- toTable(summary(CellCount))
+CellCount <- CellCount$true
+# Apply gate 
+flowData_transformedInflux <- Subset(flowData_transformedInflux, polyGate_sort)
+
+# Remove all variables that are no longer needed
+remove(polyGate_sort)
+```
+
+```{r Influx_Gates, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Define gates for sorting
+param_sort <- c("PMT 2", "PMT 3")
+sqrcut1 <- log10(sinh(matrix(c(6.2,7.6,7.6,6.2,
+            6.6,6.6,8.4,8.4),
+            ncol = 2,
+            nrow = 4)))
+sqrcut1[!is.finite(sqrcut1)] <- 0
+colnames(sqrcut1) <- param_sort
+pGs_1 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- log10(sinh(matrix(c(6,7.5,7.5,6,
+            5.9,5.9,6.6,6.6),
+            ncol = 2,
+            nrow = 4)))
+colnames(sqrcut1) <- param_sort
+pGs_2 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- log10(sinh(matrix(c(4,5.9,5.9,4,
+            6.1,6.1,7,7),
+            ncol = 2,
+            nrow = 4)))
+colnames(sqrcut1) <- param_sort
+pGs_3 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- log10(sinh(matrix(c(3.8,6.7,6.7,3.8,
+            4.5,4.5,5.9,5.9),
+            ncol = 2,
+            nrow = 4)))
+colnames(sqrcut1) <- param_sort
+pGs_4 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- log10(sinh(matrix(c(5, 6, 6,5,
+          3.8,3.8,4.3,4.3),
+          ncol = 2,
+          nrow = 4)))
+colnames(sqrcut1) <- param_sort
+pGs_5 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- log10(sinh(matrix(c(1.2, 3.25, 3.25,1.2,
+            4,4,2.8,2.8),
+            ncol = 2,
+            nrow = 4)))
+colnames(sqrcut1) <- param_sort
+pGs_6 <- polygonGate(.gate = sqrcut1)
+
+
+# All filters Influx
+filtersallInflux <- list(filters(list(pGs_1, pGs_2, pGs_3, pGs_4, pGs_5)))
+```
+
+```{r Influx_fractions, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Count number of cells in subpopulation 1
+Population1Count <- flowCore::filter(flowData_transformedInflux, pGs_1) 
+Population1Count <- toTable(summary(Population1Count))
+Population1Count <- Population1Count$true
+Population1Fraction <- Population1Count/CellCount
+# Count number of cells in subpopulation 2
+Population2Count <- flowCore::filter(flowData_transformedInflux, pGs_2) 
+Population2Count <- toTable(summary(Population2Count))
+Population2Count <- Population2Count$true
+Population2Fraction <- Population2Count/CellCount
+# Count number of cells in subpopulation 3
+Population3Count <- flowCore::filter(flowData_transformedInflux, pGs_3) 
+Population3Count <- toTable(summary(Population3Count))
+Population3Count <- Population3Count$true
+Population3Fraction <- Population3Count/CellCount
+# Count number of cells in subpopulation 4
+Population4Count <- flowCore::filter(flowData_transformedInflux, pGs_4) 
+Population4Count <- toTable(summary(Population4Count))
+Population4Count <- Population4Count$true
+Population4Fraction <- Population4Count/CellCount
+# Count number of cells in subpopulation 5
+Population5Count <- flowCore::filter(flowData_transformedInflux, pGs_5) 
+Population5Count <- toTable(summary(Population5Count))
+Population5Count <- Population5Count$true
+Population5Fraction <- Population5Count/CellCount
+# Count number of cells in subpopulation 6
+Population6Count <- flowCore::filter(flowData_transformedInflux, pGs_6) 
+Population6Count <- toTable(summary(Population6Count))
+Population6Count <- Population6Count$true
+Population6Fraction <- Population6Count/CellCount
+# Store fractions in a dataframe
+Fractions <- cbind.data.frame(sampleNames(flowData_transformedInflux), Population1Fraction, Population2Fraction, Population3Fraction, Population4Fraction, Population5Fraction, Population6Fraction)
+colnames(Fractions)[1] <- "FileName"
+FractionsInflux <- Fractions
+
+# Remove all variables that are no longer needed
+remove(CellCount, param_sort, sqrcut1, Population1Count, Population2Count, Population3Count, Population4Count, Population5Count, Population6Count, Population1Fraction, Population2Fraction, Population3Fraction, Population4Fraction, Population5Fraction, Population6Fraction, Fractions, pGs_1, pGs_2, pGs_3, pGs_4, pGs_5, pGs_6)
+```
+
+### Load and process FACS data
+
+```{r FACS_Preprocess, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Find corresponding FACSVerse filenames (NOTE: the influx data 'A' and 'B' pooled)
+SampleNamesSorting <- read.csv(file = "Metadata/SampleNamesInfluxData.csv", sep = ";") # contains labels of the samples that were measured on the influx
+SampleNamesFACS <- readxl::read_excel("./Metadata/FACS-LABELS.xlsx")
+SampleNamesFACS <- data.frame(SampleNamesFACS, do.call(rbind, strsplit(SampleNamesFACS$Sample_names, split = "_")))
+# Combine the FACS and Influx names of the corresponding samples
+SampleNamesSorting <- left_join(SampleNamesSorting, SampleNamesFACS[c("FACS_names", "Sample_names", "X1")], by = c("SampleName" = "X1"))
+# For 1 sample there is no matching FACS file, remove this
+SampleNamesSorting <- SampleNamesSorting[!is.na(SampleNamesSorting$FACS_names),]
+# Uploaded FACSVerse files
+filenames <- paste("./Data/Aquaculture/FCM/FACSVerse/", SampleNamesSorting$FACS_names, sep = "")
+flowDataFACS <- read.flowSet(files = unique(filenames), pattern = ".fcs") 
+
+# Transform the data
+flowdataFACS_transformed <- transform(flowDataFACS,
+                                   `FSC-H` = asinh(`FSC-H`),
+                                    `SSC-H` = asinh(`SSC-H`),
+                                    `FITC-H` = asinh(`FITC-H`),
+                                    `PE-H` = asinh(`PE-H`),
+                                    `PerCP-Cy5.5-H` = asinh(`PerCP-Cy5.5-H`),
+                                    `PE-Cy7-H` = asinh(`PE-Cy7-H`),
+                                    `APC-H` = asinh(`APC-H`),
+                                    `V450-H` = asinh(`V450-H`),
+                                    `V500-H` = asinh(`V500-H`))
+# Make a gate
+sqrcut1 <- matrix(c(6.8,6.9,12.7,12.7,
+                    2.8,4,11,2.8),
+                  ncol = 2, 
+                  nrow = 4)
+colnames(sqrcut1) <- c("FITC-H","PerCP-Cy5.5-H")
+polyGate1 <- polygonGate(.gate = sqrcut1, filterId = "Total Cells")
+# Plot the gate
+xyplot(`PerCP-Cy5.5-H` ~ `FITC-H`, data = flowdataFACS_transformed[7],
+              filter = polyGate1,
+              scales = list(y = list(limits = c(2,12)),
+                            x = list(limits = c(6,13.2))),
+              axis = axis.default,
+              xbin = 300,
+              nbin = 125,
+              par.settings = my.settings,
+              smooth = FALSE)
+# Count number of events inside this gate
+CellCount <- flowCore::filter(flowdataFACS_transformed, polyGate1) 
+CellCount <- toTable(summary(CellCount))
+CellCount <- CellCount$true
+# Apply gate 
+flowdataFACS_transformed <- Subset(flowdataFACS_transformed, polyGate1)
+```
+
+```{r FACS_Gates, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+param_sort <- c("SSC-H", "FITC-H")
+
+sqrcut1 <- matrix(c(7.8,9.8,9.8,7.8,
+            10.6,10.6,12,12),
+            ncol = 2,
+            nrow = 4)
+colnames(sqrcut1) <- param_sort
+pGs_1 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- matrix(c(7.2,9.8,9.8,7.2,
+            9.9,9.9,10.5,10.5),
+            ncol = 2,
+            nrow = 4)
+colnames(sqrcut1) <- param_sort
+pGs_2 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- matrix(c(7.2,6,6,7.2,
+            10,10,10.8,10.8),
+            ncol = 2,
+            nrow = 4)
+colnames(sqrcut1) <- param_sort
+pGs_3 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- matrix(c(7.2,5,5,8.5,8.5,7.2,
+             10,10,8.6,8.6,9.9,9.9),
+             ncol = 2, 
+             nrow = 6)
+colnames(sqrcut1) <- param_sort
+pGs_4 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- matrix(c(6,7,7,6,
+            7.5,7.5,8.5,8.5),
+            ncol = 2,
+            nrow = 4)
+colnames(sqrcut1) <- param_sort
+pGs_5 <- polygonGate(.gate = sqrcut1)
+
+sqrcut1 <- matrix(c(2.8,4.5,4.5,2.8,
+            7.6,7.6,8.7,8.7),
+            ncol = 2,
+            nrow = 4)
+colnames(sqrcut1) <- param_sort
+pGs_6 <- polygonGate(.gate = sqrcut1)
+
+# All filters Verse
+filtersallVerse <- list(filters(list(pGs_1, pGs_2, pGs_3, pGs_4, pGs_5)))
+```
+
+```{r InSilicoSortedPopulations, echo=FALSE, fig.height=8, fig.width=12, message=FALSE, warning=FALSE, cache=FALSE, dev=c("png"), dpi=500}
+Metadata <- read.xlsx(xlsxFile = "Metadata/MetadataSequencing.xlsx")
+# Make the in silico sorted populations so they can also be used to train/verify the model predictions
+MetadataSortedSamples <- Metadata[Metadata$WholeCommunityOrSorted == "Sorted" & !(Metadata$SampleIdentifierFCM %in% c("Sheath", "Chelex")),]
+MetadataSortedSamples <- MetadataSortedSamples[c("SampleIdentifierFCM", "Population")]
+# Initialise empty flow frame to store the sorted populations
+flowData_transformed_InSilico <- new('flowSet')
+# Initialise metadata dataframe
+MetadataInSilico <- NULL
+# Check for every sample which populations were sorted out and make the fcs-file for the corresponding in silico sorted population
+MetadataSortedSamples <- MetadataSortedSamples[!MetadataSortedSamples$Population == "Inv",]
+MetadataSortedSamples <- MetadataSortedSamples[!MetadataSortedSamples$Population == 6,]
+for (i in unique(MetadataSortedSamples$SampleIdentifierFCM)){
+  # Get the name of the fcs-file from the FACS that corresponds with this
+  SelectedSample <- gsub("A/B", "A", i)
+  SelectedSampleName <- SampleNamesSorting$FACS_names[SampleNamesSorting$SampleName == SelectedSample]
+  flowData_transformed <- flowdataFACS_transformed[SelectedSampleName[1]]
+  # Get the metadata that correspond to this sample
+  SelectedMetadata <- MetadataSortedSamples[MetadataSortedSamples$SampleIdentifierFCM == i,]
+  for (j in 1:dim(SelectedMetadata)[1]){
+      # Get the population
+      Population <- SelectedMetadata$Population[j]
+      # 
+      if (Population == "1"){
+        flowData_transformedGated <- Subset(flowData_transformed, pGs_1)
+      } else if (Population == "2"){
+        flowData_transformedGated <- Subset(flowData_transformed, pGs_2)  
+      } else if (Population == "3"){
+        flowData_transformedGated <- Subset(flowData_transformed, pGs_3)  
+      } else if (Population == "4"){
+        flowData_transformedGated <- Subset(flowData_transformed, pGs_4)
+      } else if (Population %in% c("5", "5b")){
+        flowData_transformedGated <- Subset(flowData_transformed, pGs_5)
+      } else if (Population == "Cells"){
+        flowData_transformedGated <- flowData_transformed
+      } 
+      ReplacementFileName <- paste(SelectedSample, "_", Population, ".fcs", sep = "")
+      # Store the data of the sorted population
+      sampleNames(flowData_transformedGated) <- ReplacementFileName
+      flowData_transformed_InSilico <- rbind2(flowData_transformed_InSilico, flowData_transformedGated)
+      # Store metadata
+      MetadataInSilicoSample <- cbind.data.frame(ReplacementFileName, Population, SelectedSample)
+      MetadataInSilico <- rbind(MetadataInSilico, MetadataInSilicoSample)
+    }
+}
+# Save the in silico sorted samples
+saveRDS(flowData_transformed_InSilico, file = "Data/Aquaculture/FCM/Sorted.rds")
+# Save the metadata file
+colnames(MetadataInSilico) <- c("Filename", "Population", "Sample")
+write.csv(MetadataInSilico, file = "Metadata/MetadataInSilicoSortedFCS.csv")
+```
+
+```{r FACS_fractions, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Count number of cells in subpopulation 1
+Population1Count <- flowCore::filter(flowdataFACS_transformed, pGs_1) 
+Population1Count <- toTable(summary(Population1Count))
+Population1Count <- Population1Count$true
+Population1Fraction <- Population1Count/CellCount
+# Count number of cells in subpopulation 2
+Population2Count <- flowCore::filter(flowdataFACS_transformed, pGs_2) 
+Population2Count <- toTable(summary(Population2Count))
+Population2Count <- Population2Count$true
+Population2Fraction <- Population2Count/CellCount
+# Count number of cells in subpopulation 3
+Population3Count <- flowCore::filter(flowdataFACS_transformed, pGs_3) 
+Population3Count <- toTable(summary(Population3Count))
+Population3Count <- Population3Count$true
+Population3Fraction <- Population3Count/CellCount
+# Count number of cells in subpopulation 4
+Population4Count <- flowCore::filter(flowdataFACS_transformed, pGs_4) 
+Population4Count <- toTable(summary(Population4Count))
+Population4Count <- Population4Count$true
+Population4Fraction <- Population4Count/CellCount
+# Count number of cells in subpopulation 5
+Population5Count <- flowCore::filter(flowdataFACS_transformed, pGs_5) 
+Population5Count <- toTable(summary(Population5Count))
+Population5Count <- Population5Count$true
+Population5Fraction <- Population5Count/CellCount
+# Count number of cells in subpopulation 6
+Population6Count <- flowCore::filter(flowdataFACS_transformed, pGs_6) 
+Population6Count <- toTable(summary(Population6Count))
+Population6Count <- Population6Count$true
+Population6Fraction <- Population6Count/CellCount
+# Store fractions in a dataframe
+Fractions <- cbind.data.frame(sampleNames(flowdataFACS_transformed), Population1Fraction, Population2Fraction, Population3Fraction, Population4Fraction, Population5Fraction, Population6Fraction)
+colnames(Fractions)[1] <- "FileName"
+FractionsVerse <- Fractions
+
+# Remove all variables that are no longer needed
+remove(CellCount, param_sort, sqrcut1, Population1Count, Population2Count, Population3Count, Population4Count, Population5Count, Population6Count, Population1Fraction, Population2Fraction, Population3Fraction, Population4Fraction, Population5Fraction, Population6Fraction, Fractions)
+```
+
+### Compare gating
+
+```{r CompareGates_PlotFACSInflux, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Plot
+for (i in 1:length(flowdataFACS_transformed)){
+  names(filtersallVerse) <- flowCore::sampleNames(flowdataFACS_transformed[SampleNamesSorting$FACS_names[i]])
+  FACS <- xyplot(`FITC-H` ~ `SSC-H`, data = flowdataFACS_transformed[SampleNamesSorting$FACS_names[i]],
+              filter = filtersallVerse,
+              scales = list(y = list(limits = c(7.5,12.5)),
+                            x = list(limits = c(2.5,10))),
+              axis = axis.default,
+              strip = FALSE,
+              xbin = 300,
+              nbin = 200,
+              par.settings = my.settings,
+              smooth = FALSE)
+  names(filtersallInflux) <- flowCore::sampleNames(flowData_transformedInflux[SampleNamesSorting$FileName[i]])
+  Influx <- xyplot(`PMT 3` ~ `PMT 2`, data = flowData_transformedInflux[SampleNamesSorting$FileName[i]], 
+              filter = filtersallInflux,
+              scales = list(y = list(limits = c(0.9,3.6)),
+                            x = list(limits = c(0.1,3.4))),
+              axis = axis.default, 
+              strip = FALSE,
+              xbin = 300,
+              nbin = 200, 
+              par.strip.text = list(col = "black", font = 3, cex = 0.75), 
+              smooth = FALSE,
+              par.settings = my.settings,
+              yscale.components = yscale.components.log10,
+              xscale.components = xscale.components.log10)
+  Combined <- c(FACS, Influx)
+  # png(paste("Figures/Gates_InfluxFacs/Gates-", i,".png", sep = ""), width = 8, height = 4, res = 500, units = "in")
+  # print(Combined)
+  # dev.off()
+}
+```
+
+```{r CompareGates_PlotFACSInflux, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Plot example for paper
+    # Normalise FACS
+    summary <- fsApply(x = flowdataFACS_transformed, FUN = function(x) apply(x, 2, max), use.exprs = TRUE)
+    maxval <- max(summary[,"FITC-H"])
+    mytrans <- function(x) x/maxval
+    flowdataFACS_transformed <- transform(flowdataFACS_transformed,
+                                      `FITC-H` = mytrans(`FITC-H`),
+                                      `PerCP-Cy5.5-H` = mytrans(`PerCP-Cy5.5-H`), 
+                                      `SSC-H` = mytrans(`SSC-H`),
+                                      `FSC-H` = mytrans(`FSC-H`),
+                                      `PE-H` = mytrans(`PE-H`),
+                                      `PE-Cy7-H` = mytrans(`PE-Cy7-H`), 
+                                      `APC-H` = mytrans(`APC-H`), 
+                                      `V450-H` = mytrans(`V450-H`),
+                                      `V500-H` = mytrans(`V500-H`))
+    
+    # Normalise FACS gates
+    param_sort <- c("SSC-H", "FITC-H")
+    
+    sqrcut1 <- mytrans(matrix(c(7.8,9.8,9.8,7.8,10.6,10.6,12,12), ncol = 2, nrow = 4))
+    colnames(sqrcut1) <- param_sort
+    pGs_1 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(matrix(c(7.2,9.8,9.8,7.2,9.9,9.9,10.5,10.5), ncol = 2, nrow = 4))
+    colnames(sqrcut1) <- param_sort
+    pGs_2 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(matrix(c(7.2,6,6,7.2,10,10,10.8,10.8), ncol = 2, nrow = 4))
+    colnames(sqrcut1) <- param_sort
+    pGs_3 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(matrix(c(7.2,5,5,8.5,8.5,7.2,10,10,8.6,8.6,9.9,9.9), ncol = 2, nrow = 6))
+    colnames(sqrcut1) <- param_sort
+    pGs_4 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(matrix(c(6,7,7,6,7.5,7.5,8.5,8.5), ncol = 2, nrow = 4))
+    colnames(sqrcut1) <- param_sort
+    pGs_5 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(matrix(c(2.8,4.5,4.5,2.8,7.6,7.6,8.7,8.7), ncol = 2, nrow = 4))
+    colnames(sqrcut1) <- param_sort
+    pGs_6 <- polygonGate(.gate = sqrcut1)
+    
+    # All filters Verse
+    filtersallVerse <- list(filters(list(pGs_1, pGs_2, pGs_3, pGs_4, pGs_5)))
+    
+    
+    
+    
+    # Transformation influx
+    # Normalise
+    summary <- fsApply(x = flowData_transformedInflux, FUN = function(x) apply(x, 2, max), use.exprs = TRUE)
+    maxval <- max(summary[,"PMT 3"])
+    mytrans <- function(x) x/maxval
+    flowData_transformedInflux <- transform(flowData_transformedInflux,
+                                      `PMT 3` = mytrans(`PMT 3`),
+                                      `PMT 2` = mytrans(`PMT 2`))
+    
+    # Define gates for sorting
+    param_sort <- c("PMT 2", "PMT 3")
+    sqrcut1 <- mytrans(log10(sinh(matrix(c(6.2,7.6,7.6,6.2,6.6,6.6,8.4,8.4), ncol = 2, nrow = 4))))
+    sqrcut1[!is.finite(sqrcut1)] <- 0
+    colnames(sqrcut1) <- param_sort
+    pGs_1 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(log10(sinh(matrix(c(6,7.5,7.5,6,5.9,5.9,6.6,6.6), ncol = 2, nrow = 4))))
+    colnames(sqrcut1) <- param_sort
+    pGs_2 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(log10(sinh(matrix(c(4,5.9,5.9,4, 6.1,6.1,7,7), ncol = 2, nrow = 4))))
+    colnames(sqrcut1) <- param_sort
+    pGs_3 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(log10(sinh(matrix(c(3.8,6.7,6.7,3.8,4.5,4.5,5.9,5.9), ncol = 2, nrow = 4))))
+    colnames(sqrcut1) <- param_sort
+    pGs_4 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(log10(sinh(matrix(c(5, 6, 6,5,3.8,3.8,4.3,4.3),ncol = 2,nrow = 4))))
+    colnames(sqrcut1) <- param_sort
+    pGs_5 <- polygonGate(.gate = sqrcut1)
+    
+    sqrcut1 <- mytrans(log10(sinh(matrix(c(1.2, 3.25, 3.25,1.2,4,4,2.8,2.8), ncol = 2,nrow = 4))))
+    colnames(sqrcut1) <- param_sort
+    pGs_6 <- polygonGate(.gate = sqrcut1)
+    
+    # All filters Influx
+    filtersallInflux <- list(filters(list(pGs_1, pGs_2, pGs_3, pGs_4, pGs_5)))
+```
+
+```{r CompareGates_PlotFACSInflux, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Szlzct sample for plotting
+i = 14
+# i = 10 #31
+
+names(filtersallVerse) <- flowCore::sampleNames(flowdataFACS_transformed[SampleNamesSorting$FACS_names[i]])
+FACS <- xyplot(`FITC-H` ~ `SSC-H`, data = flowdataFACS_transformed[SampleNamesSorting$FACS_names[i]],
+              filter = filtersallVerse,
+              scales = list(y = list(limits = c(0.55,1)),
+                            x = list(limits = c(0.3,0.85))),
+              # scales = list(y = list(limits = c(0.65,0.95)),
+              #               x = list(limits = c(0.35,0.8))),
+              axis = axis.default,
+              xlab = list(label = "Side scatter"),
+              ylab = list(label = "SYBR Green I fluorescence"),
+              strip = FALSE,
+              xbin = 350,
+              nbin = 350,
+              par.settings = my.settings,
+              smooth = FALSE)
+FACS
+
+
+names(filtersallInflux) <- flowCore::sampleNames(flowData_transformedInflux[SampleNamesSorting$FileName[i]])
+Influx <- xyplot(`PMT 3` ~ `PMT 2`, data = flowData_transformedInflux[SampleNamesSorting$FileName[i]], 
+              filter = filtersallInflux,
+              scales = list(y = list(limits = c(0.25,0.9)),
+                            x = list(limits = c(0.2,0.85))),
+              # scales = list(y = list(limits = c(0.39 ,0.85)),
+              #               x = list(limits = c(0.25,0.85))),
+              axis = axis.default,
+              xlab = list(label = "Side scatter"),
+              ylab = list(label = "SYBR Green I fluorescence"),
+              strip = FALSE,
+              xbin = 300,
+              nbin = 300, 
+              par.strip.text = list(col = "black", font = 3, cex = 0.75), 
+              smooth = FALSE,
+              par.settings = my.settings)
+
+Influx
+
+g1 <- plot_grid(Influx, FACS, labels = c("A", "B"), ncol = 2, nrow = 1, scale = 1)
+g1
+
+# ggsave(file = "Figures/FACSvsInflux.png", width = 8, height = 4.5, dpi = 500, units = "in", g1)
+```
+
+```{r CompareGates_CorrelationFACSInflux, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Fractions
+AllFractions <- FractionsInflux
+colnames(AllFractions)[2:7] <- c("1", "2", "3", "4", "5", "6")
+AllFractions <- left_join(AllFractions, SampleNamesSorting[c("FileName", "SampleName")], by = c("FileName"))
+AllFractions$SampleName <- as.character(gsub("B", "A/B", AllFractions$SampleName))
+AllFractions$SampleName <- as.character(gsub("A", "A/B", AllFractions$SampleName))
+# Upload metadata sequencing samples
+MetadataIllumina <- read.xlsx(xlsxFile = "Metadata/MetadataIllumina.xlsx")
+MetadataIllumina <- MetadataIllumina[MetadataIllumina$Population %in% c("1","2","3","4","5"),]
+# Get fractions of the samples that were sorted
+FractionsSorted <- NULL
+for (i in unique(MetadataIllumina$Population)){
+  MetadataIlluminaPop <- MetadataIllumina[MetadataIllumina$Population == i,]
+  for (j in 1:dim(MetadataIlluminaPop)[1]){
+    # Get fraction
+    SelectedFraction <- AllFractions[AllFractions$SampleName == MetadataIlluminaPop$SampleIdentifierFCM[j], i]
+    # Save in a new dataframe 
+    FractionsSorted <- rbind.data.frame(FractionsSorted, cbind.data.frame(i, MetadataIlluminaPop$SampleIdentifierFCM[j], SelectedFraction))
+  }
+}
+colnames(FractionsSorted) <- c("population", "sample", "fraction")
+write.csv(FractionsSorted, file = "Results/FractionsSorted.csv")
+```
+
+```{r CompareGates_CorrelationFACSInflux, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Fractions of the subpopulations based on the FACSVerse data
+FractionsVerse <- melt(FractionsVerse)
+FractionsVerse <- left_join(FractionsVerse, SampleNamesSorting[c("SampleName", "FACS_names")], by = c("FileName" = "FACS_names"))
+# Fractions of the subpopulations based on the Influx data
+FractionsInflux <- melt(FractionsInflux)
+FractionsInflux <- left_join(FractionsInflux, SampleNamesSorting[c("FileName", "SampleName")], by = c("FileName" = "FileName"))
+# Combine datasets
+Fractions <- left_join(FractionsVerse[c("variable", "value", "SampleName")], FractionsInflux[c("variable", "value", "SampleName")], by = c("SampleName" = "SampleName", "variable" = "variable"))
+colnames(Fractions) <- c("Population", "FractionVerse", "SampleName", "FractionInflux")
+
+# Plot
+Fractions <- Fractions[!Fractions$Population == "Population6Fraction",]
+PopulationColors <- c("#82487d", "#edd958", "#3c4175", "#60be8f", "#6c72dd")
+# Fit linear model
+LM_Fractions <- lm(FractionVerse ~ FractionInflux, data = Fractions) 
+# Plot relation between cell counts of all samples together
+p_CorrFractions <- Fractions %>%
+                       ggplot(data = ., aes(x = 100*FractionVerse, y = 100*FractionInflux)) +
+                       geom_point(shape = 21, size = 3, alpha = 1, aes(fill = Population)) +
+                       scale_fill_manual("", values = PopulationColors, labels = c("SC 1","SC 2","SC 3","SC 4","SC 5")) +
+                       labs(fill = "", x = "Relative abundance on FACSVerse (%)", y = "Relative abundance on Influx (%)") +
+                       guides(color = FALSE) +
+                       geom_abline(intercept = 0, slope = 1) +
+                       coord_fixed() +
+                       theme_cowplot() +
+                       theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet)) + 
+                       annotate(geom = "text", x = 50, y = 10, label = paste0("Adj.R.sq. = ", format(summary(LM_Fractions)$r.squared, digits = 2), "\nCp = ", format(cor((Fractions$FractionVerse), (Fractions$FractionInflux), use = "pairwise.complete.obs"), digits = 2)))
+```
+
+```{r CompareGates_CorrelationFACSInflux, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+g1 <- plot_grid(Influx, FACS, labels = c("A", "B"), ncol = 2, nrow = 1, scale = 1)
+g2 <- plot_grid(g1, p_CorrFractions, labels = c("", "C"), ncol = 1, nrow = 2, scale = 1)
+ggsave(file = "Figures/SORTING-IllustrationGateAndCorrelation.png", width = 8, height = 8, dpi = 500, units = "in", g2)
+
+# Remove all variables that are no longer needed
+remove(p_CorrFractions, LM_Fractions, FractionsInflux, FractionsVerse, Combined, FACS, filtersallVerse, filtersallInflux, flowData_transformedInflux, flowDataFACS, polyGate1, Influx, filenames, Fractions, i, g1, g2, AllFractions, flowdataFACS_transformed, FractionsSorted, MetadataIllumina, MetadataIlluminaPop, pGs_1, pGs_2, pGs_3, pGs_4, pGs_5, pGs_6, SampleNamesFACS, SampleNamesSorting, sqrcut1, summary, j, maxval, param_sort, SelectedFraction, flowdataFACS_transformed, flowData_transformed_InSilico, flowData_transformedGated, Metadata, MetadataInSilicoSample, MetadataSortedSamples, SelectedMetadata, Population, ReplacementFileName, MetadataInSilico, flowData_transformed, SelectedSample, SelectedSampleName)
+```
+
+## Evaluate sorting results and extra control samples
+
+## Predictive modelling
+
+### Upload and process Illumina data
+
+```{r UploadMetadata, echo = TRUE, dpi = 800, out.width = "800px", out.height = "175px", fig.asp = 0.5, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Upload metadata
+Metadata <- read.xlsx(xlsxFile = "Metadata/MetadataSequencing.xlsx")
+ReadQuality <- read.xlsx(xlsxFile = "Metadata/QCInfoBaseClear.xlsx")
+# Add the readquality info to the metadata
+Metadata <- left_join(Metadata, ReadQuality, by = c("Identifier" = "Samplename"))
+# Split the sample-identifiers
+Metadata <- cbind(Metadata, do.call(rbind, strsplit(as.character(Metadata$SampleIdentifierFCM), split = ".", fixed = TRUE)))
+colnames(Metadata)[12:15] <- c("Tank", "Day", "Timepoint", "Feeding_status")
+Metadata$Day <- as.numeric(gsub("D", "", Metadata$Day))
+# Remove variables that are no longer needed
+remove(ReadQuality)
+```
+
+```{r LoadInfoFromSummaries, echo = TRUE, dpi = 800, out.width = "800px", out.height = "175px", fig.asp = 0.5, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+## Upload the classification results
+# file direcrory
+fldr <- "Data/Aquaculture/Illumina/"
+# Load info from the summary-files
+filelist <- list.files(fldr)
+crfn <- grep(".*contigs.report", filelist, value = TRUE)
+fn <- sub(".contigs.report", "", crfn)
+ini <- data.table::fread(paste(fldr, "/", crfn, sep = ""), header = TRUE)
+
+# Remove all variables that will not be used further
+remove(filelist, crfn, ini)
+```
+
+```{r LoadMothurResults, echo = TRUE, dpi = 800, out.width = "800px", out.height = "175px", dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE, eval = TRUE}
+# Load taxonomy from Mothur output files
+otutaxonomy <- data.table::fread(paste(fldr, "/", fn, ".trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.cons.taxonomy", sep = ""), header = TRUE)
+taxonomy.spl <- preformattax(otutaxonomy)
+taxonomy.np <- taxonomy.spl %>% dplyr::select(-dplyr::contains("Prob"))
+
+# Load the shared file for getting the OTU abundances per sample
+shared <- data.table::fread(paste(fldr, "/", fn, ".trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.shared", sep = ""), header = TRUE)
+shared <- as.data.frame(shared)
+desgroups <- shared$Group # the samplenames
+shared.x <- shared[, 4:ncol(shared)] # only the OTU info
+rownames(shared.x) <- desgroups
+shared.t <- as.data.frame(t(shared.x))
+
+# Removal of singletons from the OTU table and the taxonomy results (singletons = OTU's that only occur once over the entire dataset)
+shared.t.ns <- shared.t[which(rowSums(shared.t)!=1),]
+taxonomy.np.ns <- taxonomy.np[which(rownames(taxonomy.np) %in% rownames(shared.t.ns)),]
+
+# Save the OTU table (with and without singletons) in an excel sheet
+tmp.otu <- cbind(rownames(shared.t), shared.t)
+colnames(tmp.otu) <- c("OTU", colnames(shared.t))
+tmp.otu.ns <- cbind(rownames(shared.t.ns), shared.t.ns)
+colnames(tmp.otu.ns) <- c("OTU", colnames(shared.t.ns))
+
+# Remove all variables that will not be used further
+remove(fldr, fn, otutaxonomy, taxonomy.spl, taxonomy.np, shared, desgroups, shared.x, shared.t, tmp.otu, tmp.otu.ns)
+```
+
+```{r Scaling, echo = TRUE, dpi = 800, out.width = "70%", dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE, eval = TRUE, results = "hide"}
+## Scaling
+# Make phyloseq object from the data without all the control samples (don't take into account their reads for scaling)
+IdentifierControlSamples <- c("250", "251", "252", "253", "254", "255", "Z")
+otumat.ns <- as.matrix(shared.t.ns[Metadata$Identifier[!Metadata$Identifier %in% IdentifierControlSamples]])
+taxmat.ns <- as.matrix(taxonomy.np.ns)
+info <- Metadata[Metadata$Identifier %in% colnames(otumat.ns),]
+OTU <- otu_table(otumat.ns, taxa_are_rows = TRUE)
+TAX <- tax_table(taxmat.ns)
+INFO <- sample_data(info)
+rownames(INFO) <- INFO$Identifier
+physeqobj <- phyloseq(OTU, TAX, INFO)
+
+# Do the scaling
+sample_sums(physeqobj)
+physeqobj <- scale_reads(physeqobj, n = 20000)
+sample_sums(physeqobj)
+
+# Save the scaled data as the otu-table
+shared.t.ns.old <- shared.t.ns # Keep this to check later
+shared.t.ns <- as.data.frame(otu_table(physeqobj))
+taxonomy.np.ns <- as.data.frame(physeqobj@tax_table@.Data)
+```
+
+```{r LoadMothurResults, echo = TRUE, dpi = 800, out.width = "800px", out.height = "175px", dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+## Upload cell densities to calculate absolute taxon abundances
+# Load the Accuri C6+ data
+Counts <- read.csv("Metadata/CellCounts.csv")
+Counts <- Counts[c("Sample", "BacterialDensity")]
+Counts$Sample <- gsub("Artemia", "Art", Counts$Sample)
+# Sample names are not perfectly matching: "Artemia" --> "Art"
+Metadata <- left_join(Metadata, Counts, by = c("SampleIdentifierFCM" = "Sample"))
+
+# Remove all variables that will not be used further
+remove(Counts)
+```
+
+```{r Preprocess, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+## Remove non-abundant OTUs that will not be detected by the FCM
+# Get all samples for which we have FCM data (no controls)
+Identifiers <- Metadata$Identifier[Metadata$WholeCommunityOrSorted %in% c("Whole community", "Sorted")]
+Info <- Metadata[Metadata$Identifier %in% Identifiers,]
+rownames(Info) <- Info$Identifier
+shared.selection <- shared.t.ns[Identifiers]
+# Calculate all absolute abundances
+SubsetOTU <- otu_table(as.matrix(shared.selection), taxa_are_rows = TRUE)
+SubsetTAX <- tax_table(as.matrix(taxonomy.np.ns))
+SubsetINFO <- sample_data(Info)
+Subsetphyseqobj <- phyloseq(SubsetOTU, SubsetTAX, SubsetINFO)
+Subsetphyseqobj <- Subsetphyseqobj %>%
+                      transform_sample_counts(function(x) {x/sum(x)}) %>%
+                      psmelt()
+Subsetphyseqobj$BacterialDensity[Subsetphyseqobj$WholeCommunityOrSorted == "Sorted"] <- 10^6
+Subsetphyseqobj$AbsoluteAbundance <- Subsetphyseqobj$Abundance*Subsetphyseqobj$BacterialDensity
+
+# Remove variables that are no longer needed
+# remove(Info, shared.selection, SubsetOTU, SubsetTAX, SubsetINFO, SubsetData, p_AbundanceDistribution_all, p_AbundanceDistribution_NoZero)
+```
+
+```{r Preprocess, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Preprocessing: only populations with at least 10^3 in the sample will be clearly distinghuishable as a cell population (put the relative abundance column to 0 because this is the input for the model)
+Subsetphyseqobj$Abundance[Subsetphyseqobj$AbsoluteAbundance < 10^3] <- 0
+# Get pre-processed OTU-table to recalculate relative abundances
+OTUPreprocessed <- Subsetphyseqobj[c("OTU", "Sample", "Abundance")]
+OTUPreprocessed <- dcast(OTUPreprocessed, OTU ~ Sample)
+# Remove OTUs that are never above the abundance threshold
+OTUPreprocessed <- OTUPreprocessed[!rowSums(OTUPreprocessed[Identifiers]) == 0,]
+# Recalculate the new relative abundances
+OTUPreprocessed[Identifiers] <- sweep(OTUPreprocessed[Identifiers], 2, colSums(OTUPreprocessed[Identifiers]), `/`)
+
+# Inspect OTU distributions (including or excluding sorting samples)
+OTUPreprocessedMelted <- melt(OTUPreprocessed, id.vars = "OTU")
+p_OTUdistribution1 <- OTUPreprocessedMelted %>%
+                        dplyr::filter(OTU %in% unique(OTUPreprocessedMelted$OTU)[1:50]) %>%
+                        # dplyr::filter(variable %in% NonSorted) %>%
+                        ggplot(data = ., aes(x = OTU, y = 100*value)) +
+                        geom_boxplot(fill = "#82487d") +
+                        labs(y = "Relative abundance (%)", x = "") +
+                        guides(fill = guide_legend(override.aes = list(shape = 21))) +
+                        scale_y_continuous(limits = c(0,100)) +
+                        annotate("segment", x = -Inf, xend = Inf, y = -Inf, yend = -Inf) +
+                        annotate("segment", x = -Inf, xend = -Inf, y = -Inf, yend = Inf) +
+                        theme_cowplot() +
+                        theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 90, vjust = 0.5))
+print(p_OTUdistribution1)
+```
+
+### Upload and process FCM data
+
+```{r Preprocess_FACS, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Read metadata 
+MetadataFCM <- readxl::read_excel("./Metadata/FACS-LABELS.xlsx")
+MetadataFCM <- data.frame(MetadataFCM, do.call(rbind, strsplit(MetadataFCM$Sample_names, split = "_")))
+# Upload the fcs-files for which we have the corresponding OTU-tables available
+IdentifiersFCM <- Metadata$SampleIdentifierFCM[Metadata$Identifier %in% Identifiers]
+fcsfiles <- MetadataFCM$FACS_names[MetadataFCM$X1 %in% IdentifiersFCM]
+fcsfiles <- paste("./Data/Aquaculture/FCM/FACSVerse/", fcsfiles, sep = "")
+flowData <- flowCore::read.flowSet(files = fcsfiles, transformation = FALSE, pattern = ".fcs", ignore.text.offset = TRUE, emptyValue = FALSE)
+
+# Select phenotypic features of interest and transform parameters
+flowData_transformed <- transform(flowData,
+                                  `FSC-H` = asinh(`FSC-H`), 
+                                  `SSC-H` = asinh(`SSC-H`), 
+                                  `FITC-H` = asinh(`FITC-H`), 
+                                  `PE-H` = asinh(`PE-H`),
+                                  `PerCP-Cy5.5-H` = asinh(`PerCP-Cy5.5-H`), 
+                                  `PE-Cy7-H` = asinh(`PE-Cy7-H`), 
+                                  `APC-H` = asinh(`APC-H`), 
+                                  `V450-H` = asinh(`V450-H`),
+                                  `V500-H` = asinh(`V500-H`))
+param <- c("FITC-H", "SSC-H", "FSC-H")
+remove(flowData)
+
+# Gate
+sqrcut1 <- matrix(c(6.8,6.9,12.7,12.7,
+                    2.8,4,11,2.8),
+                  ncol = 2, 
+                  nrow = 4)
+colnames(sqrcut1) <- c("FITC-H","PerCP-Cy5.5-H")
+polyGate1 <- polygonGate(.gate = sqrcut1, filterId = "Total Cells")
+
+# Add the sorted samples (this object was created in the code above, where the FACS data was processed)
+SortedFlowSet <- readRDS(file = "Data/Aquaculture/FCM/Sorted.rds")
+flowData_transformed <- rbind2(flowData_transformed, SortedFlowSet)
+
+# Plot the gate
+xyplot(`PerCP-Cy5.5-H` ~ `FITC-H`, data = flowData_transformed[98], 
+              filter = polyGate1,
+              scales = list(y = list(limits = c(2,12)),
+                            x = list(limits = c(6,13.2))),
+              axis = axis.default,
+              xbin = 300,
+              nbin = 125,
+              par.settings = my.settings,
+              smooth = FALSE)
+
+# Apply the gate
+flowData_transformed <- Subset(flowData_transformed, polyGate1)
+
+# Count the number of cells and subsample so all of them are at the same number for fair comparison of samples
+NumberOfCells <- flowCore::fsApply(x = flowData_transformed, FUN = function(x) nrow(x), use.exprs = TRUE)
+flowData_transformed10000H <- flowData_transformed[which(NumberOfCells > 10000)]
+flowData_transformed10000H <- FCS_resample(flowData_transformed10000H, sample = 10000)
+NumberOfCells10000H <- flowCore::fsApply(x = flowData_transformed10000H, FUN = function(x) nrow(x), use.exprs = TRUE)
+flowData_transformed10000B <- flowData_transformed[which(NumberOfCells > 5000 & NumberOfCells < 10000)]
+NumberOfCells10000B <- flowCore::fsApply(x = flowData_transformed10000B, FUN = function(x) nrow(x), use.exprs = TRUE)
+flowData_transformed <- rbind2(flowData_transformed10000H, flowData_transformed10000B)
+
+# Remove variables that are no longer needed
+remove(sqrcut1, polyGate1, SortedFlowSet, fcsfiles)
+```
+
+```{r Preprocessing_GMM, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Normalise
+summary <- fsApply(x = flowData_transformed, FUN = function(x) apply(x, 2, max), use.exprs = TRUE)
+maxval <- max(summary[,"FITC-H"])
+mytrans <- function(x) x/maxval
+flowData_transformed <- transform(flowData_transformed,
+                                  `FITC-H` = mytrans(`FITC-H`),
+                                  `PerCP-Cy5.5-H` = mytrans(`PerCP-Cy5.5-H`), 
+                                  `SSC-H` = mytrans(`SSC-H`),
+                                  `FSC-H` = mytrans(`FSC-H`),
+                                  `PE-H` = mytrans(`PE-H`),
+                                  `PE-Cy7-H` = mytrans(`PE-Cy7-H`), 
+                                  `APC-H` = mytrans(`APC-H`), 
+                                  `V450-H` = mytrans(`V450-H`),
+                                  `V500-H` = mytrans(`V500-H`))
+# Parameters to take into account for the model
+paramGMM <- c("FITC-H", "FSC-H", "SSC-H", "PerCP-Cy5.5-H")
+# # Subsample to lower sample size to make the training faster
+# flowData_transformed <- FCS_resample(flowData_transformed, replace = TRUE, sample = 1000)
+# fcs_x <- flowData_transformed[, paramGMM]
+# fcs_x <- Phenoflow::FCS_pool(fcs_x, stub = "*")
+# fcs_x <- fcs_x[, paramGMM] # The FCS_pool makes an extra column called "Original" which we don't need
+# # Check different number of clusters and optimise based on the BIC criterion
+# gmm_clust <- Mclust(data = exprs(fcs_x[[1]]), G = seq(from = 10, to = 150, by = 5))
+# saveRDS(object = gmm_clust, file = "Results/GMMFits/GMMs_4param_10to150per5.rds")
+gmm_clust <- readRDS(file = "Results/GMMFits/GMMs_4param_10to150per5.rds")
+
+
+# Plot the BIC values for the different models to see the optimization
+NoClusters <- dimnames(gmm_clust$BIC)[[1]]
+BICValues <- data.frame(as.matrix(gmm_clust$BIC)[1:length(NoClusters),])
+BICValues$NoClusters <- rownames(BICValues)
+BICValues <- reshape2::melt(BICValues, id.vars = "NoClusters")
+colnames(BICValues) <- c("NoClusters", "ModelType", "BIC")
+BICValues$NoClusters <- as.numeric(BICValues$NoClusters)
+BICValues <- BICValues[!is.na(BICValues$BIC),] # remove the NA values
+BICValues$ModelType <- droplevels(BICValues$ModelType, except = unique(BICValues$ModelType))# remove levels that are not being used
+p_bic <- BICValues %>% 
+          ggplot(data = ., aes(x = NoClusters, y = BIC)) +
+          geom_line(alpha = 1, aes(color = ModelType), show.legend = F) +
+          geom_point(shape = 21, size = 2, alpha = 1, aes(fill = ModelType)) +
+          labs(x = "Number of clusters", y = "BIC", fill = "Model type") +
+          theme_cowplot() +
+          theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+print(p_bic)
+
+
+# Make pooled sample to visualse GMMs
+Pooled <- FCS_pool(flowData_transformed["sample_005_20190902_103515.fcs"], stub = "_")
+# Pooled <- FCS_resample(Pooled, replace = TRUE, sample = 10000)
+Pooled <- Pooled[, paramGMM]
+grid <- Pooled[[1]]@exprs
+pred <- predict(object = gmm_clust, newdata = grid)
+# store in a data frame
+dfGMMViz <- as.data.frame(cbind(grid, pred$classification))
+colnames(dfGMMViz) <- c("FITC-H", "FSC-H", "SSC-H", "PerCP-Cy5.5-H", "GMM_Nr") #c("FITC-H", "SSC-H", "SSC-H", "GMM_Nr")
+dfGMMViz$GMM_Nr <- as.factor(dfGMMViz$GMM_Nr)
+dfGMMViz$`SSC-H` <- as.numeric(paste(dfGMMViz$`SSC-H`))
+dfGMMViz$`FITC-H` <- as.numeric(paste(dfGMMViz$`FITC-H`))
+# PLot the GMM
+p_GMMgrid <- dfGMMViz %>%
+             dplyr::filter(GMM_Nr %in% 1:30) %>%
+              ggplot(data = .) + 
+              geom_point(alpha = 0.5, shape = 21, aes(y = `FITC-H`, x = `SSC-H`, fill = GMM_Nr)) +
+              scale_x_continuous(limits = c(0.35, 0.85)) +
+              scale_y_continuous(limits = c(0.6, 0.95)) +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+print(p_GMMgrid)
+
+
+# Apply GMM mask to the data
+NumberOfClusters <- gmm_clust$G
+params_gmm <- colnames(gmm_clust$data)
+flowData_transformed <- flowData_transformed[, params_gmm] # subset to the relevant parameters
+GMMOut <- data.frame(matrix(nrow = NumberOfClusters+1, ncol = length(flowData_transformed))) # Initialize a df to store the results of the predictions
+rownames(GMMOut) <- c(1:NumberOfClusters, "(Other)")
+for (i in 1:length(flowData_transformed)){
+    RawData <- flowData_transformed[[i]]@exprs
+    GMMPred <- predict(gmm_clust, RawData)
+    GMMPred <- as.factor(GMMPred$classification)
+    Summary <- summary(GMMPred)
+    Summary <- Summary[rownames(GMMOut)] # Reorganise to the same order as the df that was initialised above
+    GMMOut[,i] <- Summary
+}
+# Replace the NA values by 0
+GMMOut[is.na(GMMOut)] <- 0
+rownames(GMMOut) <- c(paste("GMM", 1:NumberOfClusters, sep = ""), "Other")
+colnames(GMMOut) <- sampleNames(flowData_transformed)
+# Normalise the GMM abundances to sum = 1
+GMMOut <- sweep(GMMOut, 2, colSums(GMMOut), `/`)
+GMMOut <- t(GMMOut)
+GMMOut <- as.data.frame(GMMOut)
+GMMOut$Names <- rownames(GMMOut)
+
+# Remove all variables that are no longer needed
+remove(BICValues, dfGMMViz, flowData_transformed10000B, flowData_transformed10000H, grid, NumberOfCells, NumberOfCells10000B, NumberOfCells10000H, info, Info, INFO, my.settings, Pooled, pred, RawData, p_bic, p_GMMgrid, OTUPreprocessedMelted, p_OTUdistribution1, physeqobj, shared.selection, taxmat.ns, summary, otumat.ns, SubsetINFO, i, GMMPred, NoClusters, NumberOfClusters, params_gmm, IdentifierControlSamples, OTU, param, SubsetOTU, SubsetTAX, Summary, TAX)
+```
+
+### Combine Illumina and FCM data
+
+```{r MatchFCMAndIlluminaData, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Match the Illumina and FCM-metadata
+MetadataIllumina <- Metadata[Metadata$Identifier %in% Identifiers,]
+MetadataIllumina <- MetadataIllumina[c("SampleIdentifierFCM", "Identifier", "Population")]
+MetadataFCM <- MetadataFCM[MetadataFCM$X1 %in% IdentifiersFCM,] # For the community samples
+MetadataFCM <- MetadataFCM[c("FACS_names", "X1")]
+IdentifiersBoth <- left_join(MetadataFCM, MetadataIllumina, by = c("X1" = "SampleIdentifierFCM"))
+
+# Get IDs of non-sorted samples
+NonSorted <- IdentifiersBoth$Identifier
+
+# Add the metadata of the in silico sorted populations
+MetadataSorted <- read.csv(file = "Metadata/MetadataInSilicoSortedFCS.csv", sep = ",")
+MetadataSorted$Sample <- gsub("A", "A/B", MetadataSorted$Sample)
+MetadataSorted$Population <- as.character(MetadataSorted$Population)
+IdentifiersBothII <- left_join(MetadataSorted, MetadataIllumina[MetadataIllumina$SampleIdentifierFCM %in% MetadataSorted$Sample,], by = c("Sample" = "SampleIdentifierFCM", "Population" = "Population"))
+IdentifiersBothII <- IdentifiersBothII[c("Filename", "Population", "Sample", "Identifier")]
+colnames(IdentifiersBothII) <- c("FACS_names", "Population", "X1", "Identifier")
+IdentifiersBothII <- IdentifiersBothII[colnames(IdentifiersBoth)]
+IdentifiersBoth <- rbind(IdentifiersBoth, IdentifiersBothII)
+
+# Remove variables that are no longer needed
+remove(MetadataIllumina, MetadataSorted, IdentifiersBothII, Identifiers, IdentifiersFCM, MetadataFCM)
+```
+
+### Train models for top 50 OTUs
+
+#### Replicates over the different tanks
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+PerformancePerFold_ALL_IS <- NULL
+PerformancePerFold_NS_IS <- NULL
+PredictionsPerFold_ALL_IS <- NULL
+PredictionsPerFold_NS_IS <- NULL
+PerformanceDataset_ALL_IS <- NULL
+PerformanceDataset_NS_IS <- NULL
+
+for (i in 1:50){
+
+  # Select OTU of interest
+  OTUOfInterest <- OTUPreprocessed$OTU[i]
+  OTUAbundances <- OTUPreprocessed[OTUPreprocessed$OTU == OTUOfInterest,]
+  OTUAbundances <- cbind.data.frame(names(OTUAbundances), as.numeric(paste(OTUAbundances)))[-1,]
+  colnames(OTUAbundances) <- c("ID", "Abundance")
+
+  # Combine the features and measured variables
+  Dataset <- left_join(GMMOut, IdentifiersBoth, by = c("Names" = "FACS_names"))
+  Dataset <- left_join(Dataset, OTUAbundances, by = c("Identifier" = "ID"))
+  Dataset <- Dataset[!is.na(Dataset$Identifier),]
+  rownames(Dataset) <- Dataset$Identifier
+  Dataset <- Dataset[, -which(names(Dataset) %in% c("Names", "Identifier", "X1", "Population", "BacterialDensity"))]
+  Dataset <- Dataset[!is.na(Dataset$Abundance),]
+  
+  if(sum(Dataset$Abundance > 0.01) > 3){ # Extra check for missing OTUs in a subset of the data
+
+      # Centered log ratio transform
+      Dataset <- cbind.data.frame(compositions::clr(Dataset[,!names(Dataset) == "Abundance"]), Dataset$Abundance)
+      colnames(Dataset)[dim(Dataset)[2]] <- "Abundance"
+
+      # Save dataset to reload it later
+      DatasetFull <- Dataset
+
+      # Model
+      for (rep in 1:3){
+      AllPredictions <- NULL
+      AllPredictionsReg <- NULL
+      ClassificationProbabilities <- NULL
+      # Split data into folds
+      NumberOfFolds <- 5
+      Set1 <- 1
+      Set2 <- 2
+      Set3 <- 3
+      Set4 <- 4
+      Set5 <- 5
+      Sets <- c("Set1", "Set2", "Set3", "Set4", "Set5")
+      for (k in 1:(floor(dim(Dataset)[1]/NumberOfFolds)-1)){
+        # Get indices
+        Set1 <- c(Set1, k*NumberOfFolds)
+        Set2 <- c(Set2, (k*NumberOfFolds)+1)
+        Set3 <- c(Set3, (k*NumberOfFolds)+2)
+        Set4 <- c(Set4, (k*NumberOfFolds)+3)
+        Set5 <- c(Set5, (k*NumberOfFolds)+4)
+      }
+      if(max(Set5) < dim(Dataset)[1]){
+        NUmberLeft <- dim(Dataset)[1] - max(Set5)
+        for (l in 1:NUmberLeft){
+          assign(Sets[l], c(get(Sets[l]), max(Set5) + l))
+        }
+      }
+      if(rep %in% c(2,3)){
+        NumberOfSwitches <- round(length(Set5)/3)
+        for (pos in 1:NumberOfSwitches){
+          Set1[rep*pos] <- Set2[rep*pos]
+          Set2[rep*pos] <- Set3[rep*pos]
+          Set3[rep*pos] <- Set4[rep*pos]
+          Set4[rep*pos] <- Set5[rep*pos]
+          Set5[rep*pos] <- Set1[rep*pos]
+        }
+      }
+      # If one of the sets had an element less it might have generated NA
+      Set1 <- Set1[!is.na(Set1)]
+      Set2 <- Set2[!is.na(Set2)]
+      Set3 <- Set3[!is.na(Set3)]
+      Set4 <- Set4[!is.na(Set4)]
+      Set5 <- Set5[!is.na(Set5)]
+      # Combine in a list
+      Folds <- list(Fold1 = Set1, Fold2 = Set2, Fold3 = Set3, Fold4 = Set4, Fold5 = Set5)
+      
+      # Train and evaluate
+      for (fold in 1:length(Folds)){
+            Dataset <- DatasetFull
+            GMMNames <- colnames(Dataset)[!colnames(Dataset) == "Abundance"]
+
+            # Selected fold
+            Testindices <- Folds[[fold]]
+            train3 <- Dataset[-Testindices, ]
+            test3 <- Dataset[Testindices, ]
+
+            # Transformation --> ensure predictions are in the 0-1 range to allow logit transformation later
+            minvalue <- min(train3$Abundance[train3$Abundance > 0])
+
+            # Get number of samples with low abundance (i.e. < 0.01) and high abundance (i.e. > 0.01)
+            Below1 <- train3[train3$Abundance < 0.01,]
+            Over1 <- train3[train3$Abundance >= 0.01,]
+
+            #
+            TotalNew <- 500
+            NumberOfBelow1 <- dim(Below1)[1]
+            NumberOfOver1 <- dim(Over1)[1]
+            NumberOfOver1ToMake <- round(NumberOfBelow1/(NumberOfBelow1 + NumberOfOver1)*TotalNew)
+            NumberOfBelow1ToMake <- round(NumberOfOver1/(NumberOfBelow1 + NumberOfOver1)*TotalNew)
+            if(NumberOfOver1ToMake < TotalNew/2) NumberOfOver1ToMake <- TotalNew/2
+            if(NumberOfBelow1ToMake < TotalNew/2) NumberOfBelow1ToMake <- TotalNew/2
+            if(dim(Below1)[1] == 1){
+              NumberOfBelow1ToMake <- 0
+              NumberOfOver1ToMake <- TotalNew
+            }
+
+            # Max random variation (1000x smaller than the smallest value)
+            RandValPredictorVals <- colMins(as.matrix(abs(train3[, !names(train3) == "Abundance"])))/100
+            RandValOutput <- min(abs(train3$Abundance[train3$Abundance > 0]))/100
+            RandGMMVals <- NULL
+            RandAbundVals <- NULL
+
+            # Fake zero's
+            InSilicoBelow1 <- NULL
+            for (j in 1:round(NumberOfBelow1ToMake*1)){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSamples <- round(runif(2, min = 1, max = dim(Below1)[1]))
+              Sample1 <- Below1[SelectedSamples[1],]
+              Sample2 <- Below1[SelectedSamples[2],]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoBelow1 <- rbind.data.frame(InSilicoBelow1, New)
+            }
+
+            # Fake abundant using only abundant samples
+            InSilicoOver1H <- NULL
+            Over1High <- Over1[mean(Over1$Abundance) < Over1$Abundance,]
+            for (j in 1:round(NumberOfOver1ToMake*(1))){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSample1 <- round(runif(1, min = 1, max = dim(Over1High)[1]))
+              Sample1 <- Over1High[SelectedSample1,]
+              SelectedSample2 <- round(runif(1, min = 1, max = dim(Over1High)[1]))
+              Sample2 <- Over1High[SelectedSample2,]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoOver1H <- rbind.data.frame(InSilicoOver1H, New)
+            }
+
+            # Fake abundant using only abundant samples
+            InSilicoOver1 <- NULL
+            for (j in 1:round(NumberOfOver1ToMake*(1/2))){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSample1 <- round(runif(1, min = 1, max = dim(Over1)[1]))
+              Sample1 <- Over1[SelectedSample1,]
+              SelectedSample2 <- round(runif(1, min = 1, max = dim(Over1High)[1]))
+              Sample2 <- Over1High[SelectedSample2,]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoOver1 <- rbind.data.frame(InSilicoOver1, New)
+            }
+
+            # Fake samples mixed between low and high abundances
+            InSilicoOver2 <- NULL
+            for (j in 1:round(NumberOfOver1ToMake*(1/2))){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSample1 <- round(runif(1, min = 1, max = dim(Over1)[1]))
+              Sample1 <- Over1[SelectedSample1,]
+              SelectedSample2 <- round(runif(1, min = 1, max = dim(Below1)[1]))
+              Sample2 <- Below1[SelectedSample2,]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoOver2 <- rbind.data.frame(InSilicoOver2, New)
+            }
+
+            # Combine the in sillico samples with the original data
+            train3 <- cbind.data.frame("Original", train3)
+            colnames(train3)[1] <- "Group"
+            InSilicoBelow1 <- cbind.data.frame("InSilicoBelow1", InSilicoBelow1)
+            colnames(InSilicoBelow1)[1] <- "Group"
+            InSilicoOver1H <- cbind.data.frame("InSilicoOver1H", InSilicoOver1H)
+            colnames(InSilicoOver1H)[1] <- "Group"
+            InSilicoOver1 <- cbind.data.frame("InSilicoOver1", InSilicoOver1)
+            colnames(InSilicoOver1)[1] <- "Group"
+            InSilicoOver2 <- cbind.data.frame("InSilicoOver2", InSilicoOver2)
+            colnames(InSilicoOver2)[1] <- "Group"
+            train3 <- rbind.data.frame(train3, InSilicoBelow1, InSilicoOver1H, InSilicoOver1, InSilicoOver2)
+
+            # Make an extra dataframe in the column with two classes: present and absent
+            train3$Presence[train3$Abundance > 0.01] <- "Present"
+            train3$Presence[train3$Abundance <= 0.01] <- "Absent"
+            train3$Presence <- as.factor(train3$Presence)
+            test3$Presence[test3$Abundance > 0.01] <- "Present"
+            test3$Presence[test3$Abundance <= 0.01] <- "Absent"
+            test3$Presence <- as.factor(test3$Presence)
+
+            # Save the full dataframes to reload before the regression
+            train3full <- train3
+            test3full <- test3
+
+            # Feature selection step
+            train3Original <- train3[train3$Group == "Original",]
+            train3Original <- train3Original[colnames(train3Original) != "Group"]
+            train3Original <- train3Original[colnames(train3Original) != "Abundance"]
+            # # Balance
+            if(!summary(train3Original$Presence)[1] == summary(train3Original$Presence)[2]){train3Original <- RandOverClassif(Presence ~ ., dat = train3Original, C.perc = "balance")}
+            # define the control using a random forest selection function
+            control <- rfeControl(functions = rfFuncs, method = "repeatedcv", repeats = 25, number = 5)
+            # run the RFE algorithm
+            results <- rfe(x = train3Original[,!names(train3Original) == "Presence"], y = train3Original$Presence, sizes = seq(from = 1, to = dim(train3Original[,!names(train3Original) == "Presence"])[2], by = 2), rfeControl = control, metric = "Accuracy")
+            # plot the results
+            plot(results, type = c("g", "o"))
+            # Make selection
+            rfeout <- results$results
+            AbsoluteBest <- pickSizeBest(rfeout, metric = "Accuracy", maximize = TRUE)
+            Within1Perc <- pickSizeTolerance(rfeout, metric = "Accuracy",  tol = 0.5, maximize = TRUE)
+            if(results$results$Accuracy[results$results$Variables == AbsoluteBest] == 1){Within1Perc <- AbsoluteBest}
+            if(Within1Perc == 1){Within1Perc <- AbsoluteBest}
+            Keep <- results$optVariables[1:Within1Perc]
+            KeepClassifier <- Keep
+            # list the chosen features
+            train3 <- train3[c("Group", Keep, "Abundance", "Presence")]
+            test3 <- test3[c(Keep, "Abundance", "Presence")]
+
+            # Make over 1 uniform
+            Train3Over <- train3[train3$Abundance >= 0.01,]
+            Train3Below <- train3[train3$Abundance < 0.01,]
+            RangeAbundances <- range(Train3Over$Abundance)
+            BreaksAbundances <- seq(RangeAbundances[1], RangeAbundances[2], by = ((RangeAbundances[2] - RangeAbundances[1])/100))
+            CutAbundances <- cut(Train3Over$Abundance, BreaksAbundances, right = FALSE)
+            FrequencyAbundances <- table(CutAbundances)
+            CutOff <- round(median(FrequencyAbundances))
+            Subsampled <- NULL
+            for (k in 1:length(FrequencyAbundances)){
+              # Get samples in the kth interval
+              Lower <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k-1)
+              Upper <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k)
+              SelectedData <- Train3Over[Train3Over$Abundance >= Lower & Train3Over$Abundance < Upper,]
+              # Subsample if there are more than "cutoff"
+              if (dim(SelectedData)[1] > CutOff){
+                  SelectedData <- SelectedData[sample(nrow(SelectedData), CutOff), ]
+                } else {
+                  SelectedData <- SelectedData
+                }
+                # Store subsampled data
+                Subsampled <- rbind(Subsampled, SelectedData)
+              }
+            Train3Over <- Subsampled
+            # Combine with the low abundant samples
+            train3 <- rbind.data.frame(Train3Over, Train3Below)
+
+            # Temporarily remove the abundance column
+            train3 <- train3[colnames(train3) != "Abundance"]
+            test3 <- test3[colnames(test3) != "Abundance"]
+
+            # Remove the "Group"-column
+            train3 <- train3[colnames(train3) != "Group"]
+            test3 <- test3[colnames(test3) != "Group"]
+
+            # Balance the classes
+            print(summary(train3$Presence))
+            if(!summary(train3$Presence)[1] == summary(train3$Presence)[2]){train3 <- RandUnderClassif(Presence ~ ., dat = train3, C.perc = "balance", repl = FALSE)}
+            print(summary(train3$Presence))
+
+            ### Caret list
+            FitControl <- trainControl(method = "cv", number = 5, returnResamp = "final", savePredictions = "final", index = createMultiFolds(train3$Presence, k = 3, times = 1), classProbs = TRUE)
+
+                # Create tuning grid for the RF
+                    # Tune RF
+                    if (dim(train3)[2]-1 > 5) {
+                      mtryoptions <- seq(1, round(dim(train3[,!names(train3) == "Presence"])[2]/5), by = 1)
+                    } else {
+                      mtryoptions <- seq(1, dim(train3)[2]-1, by = 1)
+                    }
+                    tunegridRF <- expand.grid(.mtry = mtryoptions)
+                    # Tune SVMPoly
+                    C <- c(0.001, 0.01, 0.1, 1, 10, 100)
+                    degree <- c(1, 2, 3)
+                    scale <- c(1, 2)
+                    tunegridSVMPoly <- expand.grid(C = C, degree = degree, scale = scale)
+
+                # Train models
+                model_listClassifier <- caretList(Presence ~ .,
+                                        data = train3,
+                                        trControl = FitControl,
+                                        tuneList = list(RF = caretModelSpec(method = "rf", tuneGrid = tunegridRF, ntree = 500)))
+
+              # Get predictions
+              if(dim(test3)[2] == 2){
+                testset <- as.data.frame(test3[,!names(test3) == "Presence"])
+                colnames(testset) <- colnames(test3[1])
+              } else {
+                testset <- as.data.frame(test3[,!names(test3) == "Presence"])
+              }
+              ens_preds <- predict(model_listClassifier$RF, newdata = testset, type = "raw")
+              ens_preds <- cbind.data.frame(ens_preds, test3$Presence)
+              colnames(ens_preds) <- c("Predicted", "Real")
+              rownames(ens_preds) <- rownames(test3)
+              PredRFC <- ens_preds
+
+              # Compute and save prediction probabilities
+              ClassProb <- predict(model_listClassifier$RF, newdata = testset, type = "prob")
+              ClassificationProbabilities <- rbind.data.frame(ClassificationProbabilities, cbind.data.frame(as.numeric(test3$Presence == "Absent"), ClassProb["Absent"]))
+              # ROC <- roc(as.numeric(test3$Presence == "Absent"), ClassProbs$Absent)
+              # AUC <- auc(ROC)
+              # print(AUC[1])
+              
+              
+              # Get feature importances
+                  # From the model
+                  ImportancesRF <- t(as.data.frame(varImp(model_listClassifier$RF)["importance"]))
+                  # Features that were removed
+                  RemovedFeatures <- GMMNames[!GMMNames %in% colnames(ImportancesRF)]
+                  ImportancesRemoved <- as.data.frame(t(rep(0, length(RemovedFeatures))))
+                  names(ImportancesRemoved) <- RemovedFeatures
+                  #
+                  ImportancesClassifier <- cbind.data.frame(ImportancesRF, ImportancesRemoved)
+                  ImportancesClassifier <- ImportancesClassifier[,GMMNames]
+                  names(ImportancesClassifier) <- paste(names(ImportancesClassifier), "_Class", sep = "")
+
+
+
+              ### REGRESSION ###
+              # Temporarily remove the abundance column
+              train3 <- train3full
+              test3 <- test3full
+
+              # Remove "Presence"-column
+              train3 <- train3[colnames(train3) != "Presence"]
+              test3 <- test3[colnames(test3) != "Presence"]
+
+              # Feature selection step
+              train3Original <- train3[train3$Group == "Original",]
+              train3Original <- train3Original[colnames(train3Original) != "Group"]
+              # more homogeneous distribution
+              train3OriginalLower <- train3Original[train3Original$Abundance < 0.01,]
+              train3OriginalHigher <- train3Original[train3Original$Abundance >= 0.01,]
+              if(dim(train3OriginalLower)[1] > dim(train3OriginalHigher)[1]){
+                train3OriginalLower <- train3OriginalLower[sample(nrow(train3OriginalLower), dim(train3OriginalHigher)[1]), ]
+              }
+              train3Original <- rbind.data.frame(train3OriginalLower, train3OriginalHigher)
+              if(dim(train3Original)[1] > 10){
+                    # define the control using a random forest selection function
+                    control <- rfeControl(functions = rfFuncs, method = "repeatedcv", repeats = 25, number = 5)
+                    # run the RFE algorithm
+                    results <- rfe(x = train3Original[,!names(train3Original) == "Abundance"], y = train3Original$Abundance, sizes = seq(from = 1, to = dim(train3Original[,!names(train3Original) == "Abundance"])[2], by = 2), rfeControl = control, metric = "Rsquared")
+                    # plot the results
+                    plot(results, type = c("g", "o"))
+                    # Make selection
+                    rfeout <- results$results
+                    if(sum(rfeout$Rsquared == 1) == length(rfeout$Rsquared)){
+                      Keep <- Keep
+                    } else {
+                      Within1Perc <- pickSizeTolerance(rfeout, metric = "Rsquared",  tol = 0.5, maximize = TRUE)
+                      Keep <- results$optVariables[1:Within1Perc]
+                    }
+                    # Get the chosen features
+                    train3 <- train3[c("Group", Keep, "Abundance")]
+                    test3 <- test3[c(Keep, "Abundance")]
+              }
+
+              # Remove the group-column
+              train3 <- train3[colnames(train3) != "Group"]
+
+              # Reduce imbalance in the dataset
+              RangeAbundances <- range(train3$Abundance)
+              BreaksAbundances <- seq(RangeAbundances[1], RangeAbundances[2], by = ((RangeAbundances[2] - RangeAbundances[1])/100))
+              CutAbundances <- cut(train3$Abundance, BreaksAbundances, right = FALSE)
+              FrequencyAbundances <- table(CutAbundances)
+              CutOff <- round(median(FrequencyAbundances))
+              Subsampled <- NULL
+              for (k in 1:length(FrequencyAbundances)){
+                # Get samples in the kth interval
+                Lower <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k-1)
+                Upper <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k)
+                SelectedData <- train3[train3$Abundance >= Lower & train3$Abundance < Upper,]
+                # Subsample if there are more than "cutoff"
+                if (dim(SelectedData)[1] > CutOff){
+                  SelectedData <- SelectedData[sample(nrow(SelectedData), CutOff), ]
+                } else {
+                  SelectedData <- SelectedData
+                }
+                # Store subsampled data
+                Subsampled <- rbind(Subsampled, SelectedData)
+              }
+              train3 <- Subsampled
+
+              # Logit transformation --> ensure predictions are in the 0-1 range
+              train3$Abundance[train3$Abundance >= 1] <- 1 - minvalue/10
+              train3$Abundance[train3$Abundance <= 0] <- minvalue/10
+              train3$Abundance <- boot::logit(train3$Abundance)
+
+              ### Caret list
+              FitControl <- trainControl(method = "cv", number = 5, returnResamp = "final", savePredictions = "final", index = createMultiFolds(train3$Abundance, k = 3, times = 1), summaryFunction = mapeexpSummary)
+                  # Create tuning grids
+                      # Tune SVMPoly
+                      C <- c(0.001, 0.01, 0.1, 1, 10, 100)
+                      degree <- c(1, 2, 3)
+                      scale <- c(1, 2)
+                      tunegridSVMPoly <- expand.grid(C = C, degree = degree, scale = scale)
+                      # Tune gradient boost
+                      n.trees <- c(50, 100, 250, 500)
+                      interaction.depth <- c(1)
+                      shrinkage <- c(0.3, 0.2, 0.1, 0.05, 0.01)
+                      n.minobsinnode <- seq(1, 3, by = 1)
+                      tunegridGBM <- expand.grid(n.trees = n.trees, interaction.depth = interaction.depth, shrinkage = shrinkage, n.minobsinnode = n.minobsinnode)
+
+                  # Train models
+                  model_list <- caretList(Abundance ~ .,
+                                        data = train3,
+                                        trControl = FitControl,
+                                        tuneList = list(SVMPoly = caretModelSpec(method = "svmPoly", tuneGrid = tunegridSVMPoly, metric = "Rsquared"),
+                                                        GBM = caretModelSpec(method = "gbm", tuneGrid = tunegridGBM, metric = "Rsquared")))
+
+              # make ensemble
+              greedy_ensemble <- caretEnsemble(model_list, trControl = FitControl, metric = "Rsquared")
+
+              # Make predictions
+              if(dim(test3)[2] == 2){
+                testset <- as.data.frame(test3[,!names(test3) == "Abundance"])
+                colnames(testset) <- colnames(test3[1])
+              } else {
+                testset <- as.data.frame(test3[,!names(test3) == "Abundance"])
+              }
+              ens_preds <- predict(greedy_ensemble, newdata = testset)
+              ens_preds <- cbind.data.frame(ens_preds, test3$Abundance)
+              colnames(ens_preds) <- c("Predicted", "Real")
+              rownames(ens_preds) <- rownames(test3)
+
+              # Reverse the logit transform
+              ens_preds$Predicted <- boot::inv.logit(ens_preds$Predicted)
+
+              # Get feature importances
+                  # From the model
+                  ImportancesEnsemble <- t(as.data.frame(varImp(greedy_ensemble)["overall"]))
+                  # Features that were removed
+                  RemovedFeatures <- GMMNames[!GMMNames %in% colnames(ImportancesEnsemble)]
+                  ImportancesRemoved <- as.data.frame(t(rep(0, length(RemovedFeatures))))
+                  names(ImportancesRemoved) <- RemovedFeatures
+                  #
+                  ImportancesEnsemble <- cbind.data.frame(ImportancesEnsemble, ImportancesRemoved)
+                  ImportancesEnsemble <- ImportancesEnsemble[,GMMNames]
+                  names(ImportancesEnsemble) <- paste(names(ImportancesEnsemble), "_Reg", sep = "")
+
+              ### Combine predictions from the classifier and regression ###
+              Predictions <- as.data.frame(matrix(, nrow = length(test3$Abundance), ncol = 2))
+              colnames(Predictions) <- c("Predicted", "Real")
+              Predictions$Predicted <- ens_preds$Predicted
+              Predictions$Predicted[PredRFC$Predicted == "Absent"] <- 0
+              Predictions$Real <- ens_preds$Real
+              rownames(Predictions) <- rownames(test3)
+
+              # # Save the predictions
+              AllPredictions <- rbind(AllPredictions, cbind.data.frame(fold, Predictions))
+              AllPredictionsReg <- rbind(AllPredictionsReg, cbind.data.frame(fold, ens_preds))
+
+              # Save predictions and calculate performance metrics
+                  # combine classifier, regression, total predictions
+                  Combined <- cbind.data.frame(OTUOfInterest, rep, fold, PredRFC, ens_preds$Predicted, Predictions)
+                  colnames(Combined) <- c("OTU", "rep", "fold", "PredictedClass", "TrueClass", "Regression", "Combined", "TrueValue")
+                  Combined$TrueClass <- as.character(Combined$TrueClass)
+                  Combined$PredictedClass <- as.character(Combined$PredictedClass)
+                  Combined$Index <- rownames(Combined)
+
+                  CombinedNS <- Combined[rownames(Combined) %in% NonSorted,]
+                  colnames(CombinedNS) <- c("OTU", "rep", "fold", "PredictedClass", "TrueClass", "Regression", "Combined", "TrueValue", "Index")
+                  # For all data
+                  PerformancePerFold_ALL_IS <- rbind(PerformancePerFold_ALL_IS, cbind.data.frame(OTUOfInterest, rep, fold, RMSE(100*Combined$Combined, 100*Combined$TrueValue), MAE(100*Combined$Combined, 100*Combined$TrueValue), R2(100*Combined$Combined, 100*Combined$TrueValue), sum(Combined$PredictedClass == Combined$TrueClass)/length(Combined$TrueClass), ImportancesClassifier, ImportancesClassifier, ImportancesEnsemble))
+                  PredictionsPerFold_ALL_IS <- rbind(PredictionsPerFold_ALL_IS, Combined)
+                  # For only non-sorted data
+                  PerformancePerFold_NS_IS <- rbind(PerformancePerFold_NS_IS, cbind.data.frame(OTUOfInterest, rep, fold, RMSE(100*CombinedNS$Combined, 100*CombinedNS$TrueValue), MAE(100*CombinedNS$Combined, 100*CombinedNS$TrueValue), R2(100*CombinedNS$Combined, 100*CombinedNS$TrueValue), sum(CombinedNS$PredictedClass == CombinedNS$TrueClass)/length(CombinedNS$TrueClass), ImportancesClassifier, ImportancesEnsemble))
+                  PredictionsPerFold_NS_IS <- rbind(PredictionsPerFold_NS_IS, CombinedNS)
+
+        }
+
+      # Plot all predictions on the testset
+        AllPredictions$Predicted <- 100*AllPredictions$Predicted
+        AllPredictions$Real <- 100*AllPredictions$Real
+        p_pred <- ggplot(AllPredictions, aes(x = Real, y = Predicted)) +
+                            geom_point(shape = 21, size = 2, fill = SingleColor) +
+                            geom_abline(intercept = 0, slope = 1) +
+                            coord_fixed() +
+                            scale_y_continuous(limits = c(0, 100)) +
+                            scale_x_continuous(limits = c(0, 100)) +
+                            labs(x = "True abundance (%)", y = "Predicted abundance (%)") +
+                            theme_cowplot() +
+                            theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+        # p_pred
+
+        
+        AllPredictionsReg$Predicted <- 100*AllPredictionsReg$Predicted
+        AllPredictionsReg$Real <- 100*AllPredictionsReg$Real
+        p_predr <- ggplot(AllPredictionsReg, aes(x = Real, y = Predicted)) + 
+                            geom_point(shape = 21, size = 2, fill = SingleColor) +
+                            geom_abline(intercept = 0, slope = 1) +
+                            coord_fixed() +
+                            scale_y_continuous(limits = c(0, 100)) +
+                            scale_x_continuous(limits = c(0, 100)) +
+                            labs(x = "True abundance (%)", y = "Predicted abundance (%)") +
+                            theme_cowplot() +
+                            theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+        # p_predr
+
+
+        # Plot all predictions on the non-sorted samples
+        AllPredictionsNS <- AllPredictions[rownames(AllPredictions) %in% NonSorted,]
+        AllPredictionsNS <- round(AllPredictionsNS)
+        AllPredictionsNS_R2 <- R2(AllPredictionsNS$Predicted,AllPredictionsNS$Real)
+        p_predNS <- ggplot(AllPredictionsNS, aes(x = Real, y = Predicted)) +
+                            geom_point(shape = 21, size = 2, fill = "#6c72dd") +
+                            geom_abline(intercept = 0, slope = 1) +
+                            coord_fixed() +
+                            scale_y_continuous(limits = c(0, 100)) +
+                            scale_x_continuous(limits = c(0, 100)) +
+                            labs(x = "True abundance (%)", y = "Predicted abundance (%)") +
+                            annotate(geom = "text", x = 15, y = 95, label = paste0("R.sq. = ", format(AllPredictionsNS_R2, digits = 2))) +
+                            theme_cowplot() +
+                            theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+        # print(p_predNS)
+        
+        AllPredictionsRegNS <- AllPredictionsReg[rownames(AllPredictionsReg) %in% NonSorted,]
+        AllPredictionsRegNS <- round(AllPredictionsRegNS)
+        AllPredictionsRegNS_R2 <- R2(AllPredictionsRegNS$Predicted, AllPredictionsRegNS$Real)
+        p_predRegNS <- ggplot(AllPredictionsRegNS, aes(x = Real, y = Predicted)) +
+                            geom_point(shape = 21, size = 2, fill = "#6c72dd") +
+                            geom_abline(intercept = 0, slope = 1) +
+                            coord_fixed() +
+                            scale_y_continuous(limits = c(0, 100)) +
+                            scale_x_continuous(limits = c(0, 100)) +
+                            labs(x = "True abundance (%)", y = "Predicted abundance (%)") +
+                            annotate(geom = "text", x = 15, y = 95, label = paste0("R.sq. = ", format(AllPredictionsRegNS_R2, digits = 2))) +
+                            theme_cowplot() +
+                            theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+        # print(p_predRegNS)
+        
+        
+        # Calculate AUC
+        colnames(ClassificationProbabilities) <- c("True", "Probs")
+        ROC_ALL <- roc(ClassificationProbabilities$True, ClassificationProbabilities$Probs)
+        AUC_ALL <- print(auc(ROC_ALL)[1])
+        
+        ClassificationProbabilitiesNS <- ClassificationProbabilities[rownames(ClassificationProbabilities) %in% NonSorted,]
+        if (length(unique(ClassificationProbabilitiesNS$True)) > 1){
+            ROC_NS <- roc(ClassificationProbabilitiesNS$True, ClassificationProbabilitiesNS$Probs)
+            AUC_NS <- print(auc(ROC_NS)[1])
+        } else {
+            AUC_NS <- NA
+        }
+
+        # g1 <- plot_grid(p_predRegNS, p_predNS, labels = c("A", "B"), ncol = 2, nrow = 1, scale = 0.95)
+        # g1
+        # 
+        # g1 <- plot_grid(p_predRegNS, p_predNS, labels = c("B", "C"), ncol = 2, nrow = 1, scale = 0.95)
+        # g2 <- plot_grid(NULL, g1, labels = c("A", ""), ncol = 1, nrow = 2, rel_heights = c(0.8, 1), scale = 1)
+        # g2
+        # ggsave(file = "Figures/ClassifierRegression.png", width = 9, height = 8, dpi = 300, units = "in", g2)
+
+        # Save predictions and calculate performance metics
+        PerformanceDataset_ALL_IS <- rbind(PerformanceDataset_ALL_IS, cbind.data.frame(OTUOfInterest, rep, RMSE(AllPredictions$Predicted,AllPredictions$Real), MAE(AllPredictions$Predicted,AllPredictions$Real), R2(AllPredictions$Predicted,AllPredictions$Real), AUC_ALL))
+        PerformanceDataset_NS_IS <- rbind(PerformanceDataset_NS_IS, cbind.data.frame(OTUOfInterest, rep, RMSE(AllPredictionsNS$Predicted, AllPredictionsNS$Real), MAE(AllPredictionsNS$Predicted,AllPredictionsNS$Real), R2(AllPredictionsNS$Predicted,AllPredictionsNS$Real), AUC_NS))
+
+      }
+
+  }
+
+}
+
+# write.csv(PerformancePerFold_ALL_IS, "Results/PerformancePerFold_ALL.csv")
+# write.csv(PerformancePerFold_NS_IS, "Results/PerformancePerFold_NS.csv")
+# write.csv(PredictionsPerFold_ALL_IS, "Results/PredictionsPerFold_ALL.csv")
+# write.csv(PredictionsPerFold_NS_IS, "Results/PredictionsPerFold_NS.csv")
+# write.csv(PerformanceDataset_ALL_IS, "Results/PerformanceDataset_ALL.csv")
+# write.csv(PerformanceDataset_NS_IS, "Results/PerformanceDataset_NS.csv")
+```
+
+#### Using one of the tanks as validation
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+PerformancePerFold_ALL_IS <- NULL
+PerformancePerFold_NS_IS <- NULL
+PredictionsPerFold_ALL_IS <- NULL
+PredictionsPerFold_NS_IS <- NULL
+PerformanceDataset_ALL_IS <- NULL
+PerformanceDataset_NS_IS <- NULL
+
+ID1 <- Metadata$Identifier[Metadata$Tank == "T1" & Metadata$WholeCommunityOrSorted == "Whole community"]
+ID2 <- Metadata$Identifier[Metadata$Tank == "T2" & Metadata$WholeCommunityOrSorted == "Whole community"]
+ID3 <- Metadata$Identifier[Metadata$Tank == "T3" & Metadata$WholeCommunityOrSorted == "Whole community"]
+ID4 <- Metadata$Identifier[Metadata$Tank == "T4" & Metadata$WholeCommunityOrSorted == "Whole community"]
+ID5 <- Metadata$Identifier[Metadata$Tank == "T5" & Metadata$WholeCommunityOrSorted == "Whole community"]
+
+for (i in 1:50){
+
+  # Select OTU of interest
+  OTUOfInterest <- OTUPreprocessed$OTU[i]
+  OTUAbundances <- OTUPreprocessed[OTUPreprocessed$OTU == OTUOfInterest,]
+  OTUAbundances <- cbind.data.frame(names(OTUAbundances), as.numeric(paste(OTUAbundances)))[-1,]
+  colnames(OTUAbundances) <- c("ID", "Abundance")
+
+  # Combine the features and measured variables
+  Dataset <- left_join(GMMOut, IdentifiersBoth, by = c("Names" = "FACS_names"))
+  Dataset <- left_join(Dataset, OTUAbundances, by = c("Identifier" = "ID"))
+  Dataset <- Dataset[!is.na(Dataset$Identifier),]
+  rownames(Dataset) <- Dataset$Identifier
+  Dataset <- Dataset[, -which(names(Dataset) %in% c("Names", "Identifier", "X1", "Population", "BacterialDensity"))]
+  Dataset <- Dataset[!is.na(Dataset$Abundance),]
+  
+  if(sum(Dataset$Abundance > 0.01) > 3){ # Extra check for missing OTUs in a subset of the data
+
+      # Centered log ratio transform
+      Dataset <- cbind.data.frame(compositions::clr(Dataset[,!names(Dataset) == "Abundance"]), Dataset$Abundance)
+      colnames(Dataset)[dim(Dataset)[2]] <- "Abundance"
+
+      # Save dataset to reload it later
+      DatasetFull <- Dataset
+
+      # Model
+      for (rep in 1){
+      AllPredictions <- NULL
+      AllPredictionsReg <- NULL
+      # Each tank is a fold
+      Set1 <- which(rownames(DatasetFull) %in% ID1[ID1 %in% rownames(DatasetFull)])
+      Set2 <- which(rownames(DatasetFull) %in% ID2[ID2 %in% rownames(DatasetFull)])
+      Set3 <- which(rownames(DatasetFull) %in% ID3[ID3 %in% rownames(DatasetFull)])
+      Set4 <- which(rownames(DatasetFull) %in% ID4[ID4 %in% rownames(DatasetFull)])
+      Set5 <- which(rownames(DatasetFull) %in% ID5[ID5 %in% rownames(DatasetFull)])
+      # Combine in a list
+      Folds <- list(Fold1 = Set1, Fold2 = Set2, Fold3 = Set3, Fold4 = Set4, Fold5 = Set5)
+      # Train and evaluate
+      for (fold in 1:length(Folds)){
+            Dataset <- DatasetFull
+            GMMNames <- colnames(Dataset)[!colnames(Dataset) == "Abundance"]
+
+            # Selected fold
+            Testindices <- Folds[[fold]]
+            train3 <- Dataset[-Testindices, ]
+            test3 <- Dataset[Testindices, ]
+
+            # Transformation --> ensure predictions are in the 0-1 range to allow logit transformation later
+            minvalue <- min(train3$Abundance[train3$Abundance > 0])
+
+            # Get number of samples with low abundance (i.e. < 0.01) and high abundance (i.e. > 0.01)
+            Below1 <- train3[train3$Abundance < 0.01,]
+            Over1 <- train3[train3$Abundance >= 0.01,]
+
+            #
+            TotalNew <- 500
+            NumberOfBelow1 <- dim(Below1)[1]
+            NumberOfOver1 <- dim(Over1)[1]
+            NumberOfOver1ToMake <- round(NumberOfBelow1/(NumberOfBelow1 + NumberOfOver1)*TotalNew)
+            NumberOfBelow1ToMake <- round(NumberOfOver1/(NumberOfBelow1 + NumberOfOver1)*TotalNew)
+            if(NumberOfOver1ToMake < TotalNew/2) NumberOfOver1ToMake <- TotalNew/2
+            if(NumberOfBelow1ToMake < TotalNew/2) NumberOfBelow1ToMake <- TotalNew/2
+            if(dim(Below1)[1] == 1){
+              NumberOfBelow1ToMake <- 0
+              NumberOfOver1ToMake <- TotalNew
+            }
+
+            # Max random variation (1000x smaller than the smallest value)
+            RandValPredictorVals <- colMins(as.matrix(abs(train3[, !names(train3) == "Abundance"])))/100
+            RandValOutput <- min(abs(train3$Abundance[train3$Abundance > 0]))/100
+            RandGMMVals <- NULL
+            RandAbundVals <- NULL
+
+            # Fake zero's
+            InSilicoBelow1 <- NULL
+            for (j in 1:round(NumberOfBelow1ToMake*1)){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSamples <- round(runif(2, min = 1, max = dim(Below1)[1]))
+              Sample1 <- Below1[SelectedSamples[1],]
+              Sample2 <- Below1[SelectedSamples[2],]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoBelow1 <- rbind.data.frame(InSilicoBelow1, New)
+            }
+
+            # Fake abundant using only abundant samples
+            InSilicoOver1H <- NULL
+            Over1High <- Over1[mean(Over1$Abundance) < Over1$Abundance,]
+            for (j in 1:round(NumberOfOver1ToMake*(1))){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSample1 <- round(runif(1, min = 1, max = dim(Over1High)[1]))
+              Sample1 <- Over1High[SelectedSample1,]
+              SelectedSample2 <- round(runif(1, min = 1, max = dim(Over1High)[1]))
+              Sample2 <- Over1High[SelectedSample2,]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoOver1H <- rbind.data.frame(InSilicoOver1H, New)
+            }
+
+            # Fake abundant using only abundant samples
+            InSilicoOver1 <- NULL
+            for (j in 1:round(NumberOfOver1ToMake*(1/2))){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSample1 <- round(runif(1, min = 1, max = dim(Over1)[1]))
+              Sample1 <- Over1[SelectedSample1,]
+              SelectedSample2 <- round(runif(1, min = 1, max = dim(Over1High)[1]))
+              Sample2 <- Over1High[SelectedSample2,]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoOver1 <- rbind.data.frame(InSilicoOver1, New)
+            }
+
+            # Fake samples mixed between low and high abundances
+            InSilicoOver2 <- NULL
+            for (j in 1:round(NumberOfOver1ToMake*(1/2))){
+              for(k in 1:length(RandValPredictorVals)) RandGMMVals[k] <- runif(1, min = -RandValPredictorVals[k], max = RandValPredictorVals[k])
+              RandAbundVals <- runif(1, min = -RandValOutput, max = RandValOutput)
+              # Select random samples
+              SelectedSample1 <- round(runif(1, min = 1, max = dim(Over1)[1]))
+              Sample1 <- Over1[SelectedSample1,]
+              SelectedSample2 <- round(runif(1, min = 1, max = dim(Below1)[1]))
+              Sample2 <- Below1[SelectedSample2,]
+              # Random mixing proportions
+              MixProps <- runif(1, min = 0, max = 1)
+              # Mix
+              New <- MixProps*Sample1 + (1-MixProps)*Sample2
+              New <- New + c(RandGMMVals, RandAbundVals)
+              # Save
+              InSilicoOver2 <- rbind.data.frame(InSilicoOver2, New)
+            }
+
+            # Combine the in sillico samples with the original data
+            train3 <- cbind.data.frame("Original", train3)
+            colnames(train3)[1] <- "Group"
+            InSilicoBelow1 <- cbind.data.frame("InSilicoBelow1", InSilicoBelow1)
+            colnames(InSilicoBelow1)[1] <- "Group"
+            InSilicoOver1H <- cbind.data.frame("InSilicoOver1H", InSilicoOver1H)
+            colnames(InSilicoOver1H)[1] <- "Group"
+            InSilicoOver1 <- cbind.data.frame("InSilicoOver1", InSilicoOver1)
+            colnames(InSilicoOver1)[1] <- "Group"
+            InSilicoOver2 <- cbind.data.frame("InSilicoOver2", InSilicoOver2)
+            colnames(InSilicoOver2)[1] <- "Group"
+            train3 <- rbind.data.frame(train3, InSilicoBelow1, InSilicoOver1H, InSilicoOver1, InSilicoOver2)
+
+            # Make an extra dataframe in the column with two classes: present and absent
+            train3$Presence[train3$Abundance > 0.01] <- "Present"
+            train3$Presence[train3$Abundance <= 0.01] <- "Absent"
+            train3$Presence <- as.factor(train3$Presence)
+            test3$Presence[test3$Abundance > 0.01] <- "Present"
+            test3$Presence[test3$Abundance <= 0.01] <- "Absent"
+            test3$Presence <- as.factor(test3$Presence)
+
+            # Save the full dataframes to reload before the regression
+            train3full <- train3
+            test3full <- test3
+
+            # Feature selection step
+            train3Original <- train3[train3$Group == "Original",]
+            train3Original <- train3Original[colnames(train3Original) != "Group"]
+            train3Original <- train3Original[colnames(train3Original) != "Abundance"]
+            # # Balance
+            if(!summary(train3Original$Presence)[1] == summary(train3Original$Presence)[2]){train3Original <- RandOverClassif(Presence ~ ., dat = train3Original, C.perc = "balance")}
+            # define the control using a random forest selection function
+            control <- rfeControl(functions = rfFuncs, method = "repeatedcv", repeats = 25, number = 5)
+            # run the RFE algorithm
+            results <- rfe(x = train3Original[,!names(train3Original) == "Presence"], y = train3Original$Presence, sizes = seq(from = 1, to = dim(train3Original[,!names(train3Original) == "Presence"])[2], by = 2), rfeControl = control, metric = "Accuracy")
+            # plot the results
+            plot(results, type = c("g", "o"))
+            # Make selection
+            rfeout <- results$results
+            AbsoluteBest <- pickSizeBest(rfeout, metric = "Accuracy", maximize = TRUE)
+            Within1Perc <- pickSizeTolerance(rfeout, metric = "Accuracy",  tol = 0.5, maximize = TRUE)
+            if(results$results$Accuracy[results$results$Variables == AbsoluteBest] == 1){Within1Perc <- AbsoluteBest}
+            if(Within1Perc == 1){Within1Perc <- AbsoluteBest}
+            Keep <- results$optVariables[1:Within1Perc]
+            KeepClassifier <- Keep
+            # list the chosen features
+            train3 <- train3[c("Group", Keep, "Abundance", "Presence")]
+            test3 <- test3[c(Keep, "Abundance", "Presence")]
+
+            # Make over 1 uniform
+            Train3Over <- train3[train3$Abundance >= 0.01,]
+            Train3Below <- train3[train3$Abundance < 0.01,]
+            RangeAbundances <- range(Train3Over$Abundance)
+            BreaksAbundances <- seq(RangeAbundances[1], RangeAbundances[2], by = ((RangeAbundances[2] - RangeAbundances[1])/100))
+            CutAbundances <- cut(Train3Over$Abundance, BreaksAbundances, right = FALSE)
+            FrequencyAbundances <- table(CutAbundances)
+            CutOff <- round(median(FrequencyAbundances))
+            Subsampled <- NULL
+            for (k in 1:length(FrequencyAbundances)){
+              # Get samples in the kth interval
+              Lower <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k-1)
+              Upper <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k)
+              SelectedData <- Train3Over[Train3Over$Abundance >= Lower & Train3Over$Abundance < Upper,]
+              # Subsample if there are more than "cutoff"
+              if (dim(SelectedData)[1] > CutOff){
+                  SelectedData <- SelectedData[sample(nrow(SelectedData), CutOff), ]
+                } else {
+                  SelectedData <- SelectedData
+                }
+                # Store subsampled data
+                Subsampled <- rbind(Subsampled, SelectedData)
+              }
+            Train3Over <- Subsampled
+            # Combine with the low abundant samples
+            train3 <- rbind.data.frame(Train3Over, Train3Below)
+
+            # Temporarily remove the abundance column
+            train3 <- train3[colnames(train3) != "Abundance"]
+            test3 <- test3[colnames(test3) != "Abundance"]
+
+            # Remove the "Group"-column
+            train3 <- train3[colnames(train3) != "Group"]
+            test3 <- test3[colnames(test3) != "Group"]
+
+            # Balance the classes
+            print(summary(train3$Presence))
+            if(!summary(train3$Presence)[1] == summary(train3$Presence)[2]){train3 <- RandUnderClassif(Presence ~ ., dat = train3, C.perc = "balance", repl = FALSE)}
+            print(summary(train3$Presence))
+
+            ### Caret list
+            FitControl <- trainControl(method = "cv", number = 5, returnResamp = "final", savePredictions = "final", index = createMultiFolds(train3$Presence, k = 3, times = 1), classProbs = TRUE)
+
+                # Create tuning grid for the RF
+                    # Tune RF
+                    if (dim(train3)[2]-1 > 5) {
+                      mtryoptions <- seq(1, round(dim(train3[,!names(train3) == "Presence"])[2]/5), by = 1)
+                    } else {
+                      mtryoptions <- seq(1, dim(train3)[2]-1, by = 1)
+                    }
+                    tunegridRF <- expand.grid(.mtry = mtryoptions)
+                    # Tune SVMPoly
+                    C <- c(0.001, 0.01, 0.1, 1, 10, 100)
+                    degree <- c(1, 2, 3)
+                    scale <- c(1, 2)
+                    tunegridSVMPoly <- expand.grid(C = C, degree = degree, scale = scale)
+
+                # Train models
+                model_listClassifier <- caretList(Presence ~ .,
+                                        data = train3,
+                                        trControl = FitControl,
+                                        tuneList = list(RF = caretModelSpec(method = "rf", tuneGrid = tunegridRF, ntree = 500)))
+
+              # Get predictions
+              if(dim(test3)[2] == 2){
+                testset <- as.data.frame(test3[,!names(test3) == "Presence"])
+                colnames(testset) <- colnames(test3[1])
+              } else {
+                testset <- as.data.frame(test3[,!names(test3) == "Presence"])
+              }
+              ens_preds <- predict(model_listClassifier$RF, newdata = testset, type = "raw")
+              ens_preds <- cbind.data.frame(ens_preds, test3$Presence)
+              colnames(ens_preds) <- c("Predicted", "Real")
+              rownames(ens_preds) <- rownames(test3)
+              PredRFC <- ens_preds
+              # Get feature importances
+                  # From the model
+                  ImportancesRF <- t(as.data.frame(varImp(model_listClassifier$RF)["importance"]))
+                  # Features that were removed
+                  RemovedFeatures <- GMMNames[!GMMNames %in% colnames(ImportancesRF)]
+                  ImportancesRemoved <- as.data.frame(t(rep(0, length(RemovedFeatures))))
+                  names(ImportancesRemoved) <- RemovedFeatures
+                  #
+                  ImportancesClassifier <- cbind.data.frame(ImportancesRF, ImportancesRemoved)
+                  ImportancesClassifier <- ImportancesClassifier[,GMMNames]
+                  names(ImportancesClassifier) <- paste(names(ImportancesClassifier), "_Class", sep = "")
+
+
+
+              ### REGRESSION ###
+              # Temporarily remove the abundance column
+              train3 <- train3full
+              test3 <- test3full
+
+              # Remove "Presence"-column
+              train3 <- train3[colnames(train3) != "Presence"]
+              test3 <- test3[colnames(test3) != "Presence"]
+
+              # Feature selection step
+              train3Original <- train3[train3$Group == "Original",]
+              train3Original <- train3Original[colnames(train3Original) != "Group"]
+              # more homogeneous distribution
+              train3OriginalLower <- train3Original[train3Original$Abundance < 0.01,]
+              train3OriginalHigher <- train3Original[train3Original$Abundance >= 0.01,]
+              if(dim(train3OriginalLower)[1] > dim(train3OriginalHigher)[1]){
+                train3OriginalLower <- train3OriginalLower[sample(nrow(train3OriginalLower), dim(train3OriginalHigher)[1]), ]
+              }
+              train3Original <- rbind.data.frame(train3OriginalLower, train3OriginalHigher)
+              # define the control using a random forest selection function
+              control <- rfeControl(functions = rfFuncs, method = "repeatedcv", repeats = 25, number = 5)
+              # run the RFE algorithm
+              results <- rfe(x = train3Original[,!names(train3Original) == "Abundance"], y = train3Original$Abundance, sizes = seq(from = 1, to = dim(train3Original[,!names(train3Original) == "Abundance"])[2], by = 2), rfeControl = control, metric = "Rsquared")
+              # plot the results
+              plot(results, type = c("g", "o"))
+              # Make selection
+              rfeout <- results$results
+              if(sum(rfeout$Rsquared == 1) == length(rfeout$Rsquared)){
+                Keep <- Keep
+              } else {
+                Within1Perc <- pickSizeTolerance(rfeout, metric = "Rsquared",  tol = 0.5, maximize = TRUE)
+                # AbsoluteBest <- pickSizeBest(rfeout, metric = "Rsquared", maximize = TRUE)
+                Keep <- results$optVariables[1:Within1Perc]
+              }
+              # Keep <- c(Keep, KeepClassifier[!KeepClassifier %in% Keep])
+              # Get the chosen features
+              train3 <- train3[c("Group", Keep, "Abundance")]
+              test3 <- test3[c(Keep, "Abundance")]
+
+              # Remove the group-column
+              train3 <- train3[colnames(train3) != "Group"]
+
+              # Reduce imbalance in the dataset
+              RangeAbundances <- range(train3$Abundance)
+              BreaksAbundances <- seq(RangeAbundances[1], RangeAbundances[2], by = ((RangeAbundances[2] - RangeAbundances[1])/100))
+              CutAbundances <- cut(train3$Abundance, BreaksAbundances, right = FALSE)
+              FrequencyAbundances <- table(CutAbundances)
+              CutOff <- round(median(FrequencyAbundances))
+              Subsampled <- NULL
+              for (k in 1:length(FrequencyAbundances)){
+                # Get samples in the kth interval
+                Lower <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k-1)
+                Upper <- RangeAbundances[1] + ((RangeAbundances[2] - RangeAbundances[1])/100)*(k)
+                SelectedData <- train3[train3$Abundance >= Lower & train3$Abundance < Upper,]
+                # Subsample if there are more than "cutoff"
+                if (dim(SelectedData)[1] > CutOff){
+                  SelectedData <- SelectedData[sample(nrow(SelectedData), CutOff), ]
+                } else {
+                  SelectedData <- SelectedData
+                }
+                # Store subsampled data
+                Subsampled <- rbind(Subsampled, SelectedData)
+              }
+              train3 <- Subsampled
+
+              # Logit transformation --> ensure predictions are in the 0-1 range
+              train3$Abundance[train3$Abundance >= 1] <- 1 - minvalue/10
+              train3$Abundance[train3$Abundance <= 0] <- minvalue/10
+              train3$Abundance <- boot::logit(train3$Abundance)
+
+              ### Caret list
+              FitControl <- trainControl(method = "cv", number = 5, returnResamp = "final", savePredictions = "final", index = createMultiFolds(train3$Abundance, k = 3, times = 1), summaryFunction = mapeexpSummary)
+                  # Create tuning grids
+                      # Tune SVMPoly
+                      C <- c(0.001, 0.01, 0.1, 1, 10, 100)
+                      degree <- c(1, 2, 3)
+                      scale <- c(1, 2)
+                      tunegridSVMPoly <- expand.grid(C = C, degree = degree, scale = scale)
+                      # Tune gradient boost
+                      n.trees <- c(50, 100, 250, 500)
+                      interaction.depth <- c(1)
+                      shrinkage <- c(0.3, 0.2, 0.1, 0.05, 0.01)
+                      n.minobsinnode <- seq(1, 3, by = 1)
+                      tunegridGBM <- expand.grid(n.trees = n.trees, interaction.depth = interaction.depth, shrinkage = shrinkage, n.minobsinnode = n.minobsinnode)
+
+                  # Train models
+                  model_list <- caretList(Abundance ~ .,
+                                        data = train3,
+                                        trControl = FitControl,
+                                        tuneList = list(SVMPoly = caretModelSpec(method = "svmPoly", tuneGrid = tunegridSVMPoly, metric = "Rsquared"),
+                                                        GBM = caretModelSpec(method = "gbm", tuneGrid = tunegridGBM, metric = "Rsquared")))
+
+              # make ensemble
+              greedy_ensemble <- caretEnsemble(model_list, trControl = FitControl, metric = "Rsquared")
+
+              # Make predictions
+              if(dim(test3)[2] == 2){
+                testset <- as.data.frame(test3[,!names(test3) == "Abundance"])
+                colnames(testset) <- colnames(test3[1])
+              } else {
+                testset <- as.data.frame(test3[,!names(test3) == "Abundance"])
+              }
+              ens_preds <- predict(greedy_ensemble, newdata = testset)
+              ens_preds <- cbind.data.frame(ens_preds, test3$Abundance)
+              colnames(ens_preds) <- c("Predicted", "Real")
+              rownames(ens_preds) <- rownames(test3)
+
+              # Reverse the logit transform
+              ens_preds$Predicted <- boot::inv.logit(ens_preds$Predicted)
+
+              # Get feature importances
+                  # From the model
+                  ImportancesEnsemble <- t(as.data.frame(varImp(greedy_ensemble)["overall"]))
+                  # Features that were removed
+                  RemovedFeatures <- GMMNames[!GMMNames %in% colnames(ImportancesEnsemble)]
+                  ImportancesRemoved <- as.data.frame(t(rep(0, length(RemovedFeatures))))
+                  names(ImportancesRemoved) <- RemovedFeatures
+                  #
+                  ImportancesEnsemble <- cbind.data.frame(ImportancesEnsemble, ImportancesRemoved)
+                  ImportancesEnsemble <- ImportancesEnsemble[,GMMNames]
+                  names(ImportancesEnsemble) <- paste(names(ImportancesEnsemble), "_Reg", sep = "")
+
+              ### Combine predictions from the classifier and regression ###
+              Predictions <- as.data.frame(matrix(, nrow = length(test3$Abundance), ncol = 2))
+              colnames(Predictions) <- c("Predicted", "Real")
+              Predictions$Predicted <- ens_preds$Predicted
+              Predictions$Predicted[PredRFC$Predicted == "Absent"] <- 0
+              Predictions$Real <- ens_preds$Real
+              rownames(Predictions) <- rownames(test3)
+
+              # # Save the predictions
+              AllPredictions <- rbind(AllPredictions, cbind.data.frame(fold, Predictions))
+              AllPredictionsReg <- rbind(AllPredictionsReg, cbind.data.frame(fold, ens_preds))
+
+              # Save predictions and calculate performance metrics
+                  # combine classifier, regression, total predictions
+                  Combined <- cbind.data.frame(OTUOfInterest, rep, fold, PredRFC, ens_preds$Predicted, Predictions)
+                  colnames(Combined) <- c("OTU", "rep", "fold", "PredictedClass", "TrueClass", "Regression", "Combined", "TrueValue")
+                  Combined$TrueClass <- as.character(Combined$TrueClass)
+                  Combined$PredictedClass <- as.character(Combined$PredictedClass)
+                  Combined$Index <- rownames(Combined)
+
+                  CombinedNS <- Combined[rownames(Combined) %in% NonSorted,]
+                  colnames(CombinedNS) <- c("OTU", "rep", "fold", "PredictedClass", "TrueClass", "Regression", "Combined", "TrueValue", "Index")
+                  # For all data
+                  PerformancePerFold_ALL_IS <- rbind(PerformancePerFold_ALL_IS, cbind.data.frame(OTUOfInterest, rep, fold, RMSE(100*Combined$Combined, 100*Combined$TrueValue), MAE(100*Combined$Combined, 100*Combined$TrueValue), R2(100*Combined$Combined, 100*Combined$TrueValue), sum(Combined$PredictedClass == Combined$TrueClass)/length(Combined$TrueClass), ImportancesClassifier, ImportancesClassifier, ImportancesEnsemble))
+                  PredictionsPerFold_ALL_IS <- rbind(PredictionsPerFold_ALL_IS, Combined)
+                  # For only non-sorted data
+                  PerformancePerFold_NS_IS <- rbind(PerformancePerFold_NS_IS, cbind.data.frame(OTUOfInterest, rep, fold, RMSE(100*CombinedNS$Combined, 100*CombinedNS$TrueValue), MAE(100*CombinedNS$Combined, 100*CombinedNS$TrueValue), R2(100*CombinedNS$Combined, 100*CombinedNS$TrueValue), sum(CombinedNS$PredictedClass == CombinedNS$TrueClass)/length(CombinedNS$TrueClass), ImportancesClassifier, ImportancesEnsemble))
+                  PredictionsPerFold_NS_IS <- rbind(PredictionsPerFold_NS_IS, CombinedNS)
+
+        }
+
+      # Plot all predictions on the testset
+        AllPredictions$Predicted <- 100*AllPredictions$Predicted
+        AllPredictions$Real <- 100*AllPredictions$Real
+        p_pred <- ggplot(AllPredictions, aes(x = Real, y = Predicted, fill = as.factor(fold))) +
+                            geom_point(shape = 21, size = 2) +
+                            geom_abline(intercept = 0, slope = 1) +
+                            coord_fixed() +
+                            scale_y_continuous(limits = c(0, 100)) +
+                            scale_x_continuous(limits = c(0, 100)) +
+                            ggtitle(OTUOfInterest) +
+                            labs(x = "True abundance (%)", y = "Predicted abundance (%)") +
+                            theme_cowplot() +
+                            theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+        # p_pred
+
+
+        AllPredictionsReg$Predicted <- 100*AllPredictionsReg$Predicted
+        AllPredictionsReg$Real <- 100*AllPredictionsReg$Real
+        p_predr <- ggplot(AllPredictionsReg, aes(x = Real, y = Predicted, fill = as.factor(fold))) +
+                            geom_point(shape = 21, size = 2) +
+                            geom_abline(intercept = 0, slope = 1) +
+                            coord_fixed() +
+                            scale_y_continuous(limits = c(0, 100)) +
+                            scale_x_continuous(limits = c(0, 100)) +
+                            ggtitle(OTUOfInterest) +
+                            labs(x = "True abundance (%)", y = "Predicted abundance (%)") +
+                            theme_cowplot() +
+                            theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+        # p_predr
+
+        # Plot all predictions on the non-sorted samples
+        AllPredictionsNS <- AllPredictions[rownames(AllPredictions) %in% NonSorted,]
+        AllPredictionsNS <- round(AllPredictionsNS)
+        p_predNS <- ggplot(AllPredictionsNS, aes(x = Real, y = Predicted, fill = as.factor(fold))) +
+                            geom_point(shape = 21, size = 2) +
+                            geom_abline(intercept = 0, slope = 1) +
+                            coord_fixed() +
+                            scale_y_continuous(limits = c(0, 100)) +
+                            scale_x_continuous(limits = c(0, 100)) +
+                            ggtitle(OTUOfInterest) +
+                            labs(x = "True abundance (%)", y = "Predicted abundance (%)") +
+                            theme_cowplot() +
+                            theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+        # print(p_predNS)
+
+      # Save predictions and calculate performance metics
+        PerformanceDataset_ALL_IS <- rbind(PerformanceDataset_ALL_IS, cbind.data.frame(OTUOfInterest, rep, RMSE(AllPredictions$Predicted,AllPredictions$Real), MAE(AllPredictions$Predicted,AllPredictions$Real), R2(AllPredictions$Predicted,AllPredictions$Real)))
+        PerformanceDataset_NS_IS <- rbind(PerformanceDataset_NS_IS, cbind.data.frame(OTUOfInterest, rep, RMSE(AllPredictionsNS$Predicted, AllPredictionsNS$Real), MAE(AllPredictionsNS$Predicted,AllPredictionsNS$Real), R2(AllPredictionsNS$Predicted,AllPredictionsNS$Real)))
+
+      }
+
+  }
+
+}
+
+# write.csv(PerformancePerFold_ALL_IS, "Results/PerformancePerFold_ALL_1TankAsTest.csv")
+# write.csv(PerformancePerFold_NS_IS, "Results/PerformancePerFold_NS_1TankAsTest.csv")
+# write.csv(PredictionsPerFold_ALL_IS, "Results/PredictionsPerFold_ALL_1TankAsTest.csv")
+# write.csv(PredictionsPerFold_NS_IS, "Results/PredictionsPerFold_NS_1TankAsTest.csv")
+# write.csv(PerformanceDataset_ALL_IS, "Results/PerformanceDataset_ALL_1TankAsTest.csv")
+# write.csv(PerformanceDataset_NS_IS, "Results/PerformanceDataset_NS_1TankAsTest.csv")
+```
+
+#### Check sensitivity to dataset size
+
+### Plot results
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Upload results
+PredictionsPerFold <- read.csv("Results/PredictionsPerFold_NS.csv")
+```
+
+#### Regression
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Calculate false positive and false negative rates
+shared.t.ns.rel <- sweep(shared.t.ns, 2, colSums(shared.t.ns), `/`)
+shared.t.ns.rel <- shared.t.ns.rel[NonSorted]
+Results <- NULL
+for (i in unique(PredictionsPerFold$OTU)){
+  for (j in unique(PredictionsPerFold$rep)){
+    # Select the predictions from this repeat of the selected fold
+    SelectedSet <- PredictionsPerFold[PredictionsPerFold$OTU == i & PredictionsPerFold$rep == j,]
+    # R2
+    R2_Regression <- R2(SelectedSet$Regression, SelectedSet$TrueValue)
+    R2_Final <- R2(SelectedSet$Combined, SelectedSet$TrueValue)
+    # MAE
+    MAE_Regression <- MAE(SelectedSet$Regression, SelectedSet$TrueValue)
+    MAE_Final <- MAE(SelectedSet$Combined, SelectedSet$TrueValue)
+    nMAE_Regression <- MAE(SelectedSet$Regression, SelectedSet$TrueValue)/mean(as.matrix(shared.t.ns.rel[i,]))
+    nMAE_Final <- MAE(SelectedSet$Combined, SelectedSet$TrueValue)/mean(as.matrix(shared.t.ns.rel[i,]))
+    # False positive and negative before imposing classifier
+    FPBefore <- dim(SelectedSet[SelectedSet$TrueClass == "Absent" & SelectedSet$Regression >= 0.01,])[1]
+    FNBefore <- dim(SelectedSet[SelectedSet$TrueClass == "Present" & SelectedSet$Regression < 0.01,])[1]
+    # False positive and negative after imposing classifier
+    FPAfter <- dim(SelectedSet[SelectedSet$TrueClass == "Absent" & SelectedSet$Combined >= 0.01,])[1]
+    FNAfter <- dim(SelectedSet[SelectedSet$TrueClass == "Present" & SelectedSet$Combined < 0.01,])[1]
+    # Add absolute abundances
+    SelectedSet$Index <- as.character(SelectedSet$Index)
+    SelectedSet <- left_join(SelectedSet, Subsetphyseqobj[c("OTU", "Sample", "BacterialDensity")], by = c("OTU" = "OTU", "Index" = "Sample"))
+    SelectedSet$CombinedAbsolute <- SelectedSet$Combined*SelectedSet$BacterialDensity
+    SelectedSet$TrueValueAbsolute <- SelectedSet$TrueValue*SelectedSet$BacterialDensity
+    R2_Final_Absolute <- R2(SelectedSet$CombinedAbsolute, SelectedSet$TrueValueAbsolute)
+    # Save results
+    Results <- rbind.data.frame(Results, cbind.data.frame(i, j, R2_Regression, R2_Final, MAE_Regression, MAE_Final, nMAE_Regression, nMAE_Final, FPBefore, FNBefore, FPAfter, FNAfter, R2_Final_Absolute))
+  }
+}
+colnames(Results)[1:2] <- c("OTU", "rep")
+Results <- Results[complete.cases(Results),]
+Results <- melt(Results, id.vars = c("OTU", "rep"))
+Results2 <- Results
+
+# Sort the dataframe according to average performance
+MeanRegressionPerformance <- Results %>% group_by(OTU, variable) %>% summarise_at(.vars = names(.)[4], .funs = c(mean = "mean", sd = "sd"))
+Results <- left_join(Results, MeanRegressionPerformance, by = c("OTU", "variable"))
+ResultsRegression <- Results %>% dplyr::filter(variable %in% c("R2_Final", "R2_Regression"))
+taxonomy.np.ns$OTU <- rownames(taxonomy.np.ns)
+ResultsRegression <- left_join(ResultsRegression, taxonomy.np.ns, by = c("OTU"))
+ResultsRegression$Label <- paste(ResultsRegression$OTU, " (", ResultsRegression$Genus, ")", sep = "")
+ResultsRegression <- ResultsRegression[order(-ResultsRegression$mean),] 
+ResultsRegression$Label <- factor(ResultsRegression$Label, levels = unique(ResultsRegression$Label))
+
+# Plot R2 values
+p_R2_stat <- ResultsRegression %>%
+              dplyr::filter(variable %in% c("R2_Final")) %>%
+              ggplot(data = ., aes(x = Label, y = value, fill = variable)) +
+              geom_errorbar(aes(x = Label, ymin = mean, ymax = mean), color = "#6c72dd", width = 0.8) +
+              geom_point(shape = 21, fill = "#6c72dd") +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 65, hjust = 1), plot.margin = unit(c(0.2, 0.2, 0.2, 2), "cm")) +
+              guides(color = FALSE, fill = FALSE) + 
+              labs(color = "", y = expression(paste("R"^"2")), x = "") +
+              scale_y_continuous(limits = c(0, 1))
+print(p_R2_stat)
+png("Figures/AQUACULTURE-FinalR2.png", width = 9, height = 6, res = 500, units = "in")
+print(p_R2_stat)
+dev.off()
+
+p_R2 <- ResultsRegression %>%
+              dplyr::filter(variable %in% c("R2_Regression", "R2_Final")) %>%
+              ggplot(data = ., aes(x = Label, y = value, fill = variable)) +
+              geom_errorbar(aes(x = Label, ymin = mean, ymax = mean, color = variable), width = 0.8, size = 1) +
+              geom_point(shape = 21) +
+              scale_fill_manual("",values = c("#6c72dd", "#4fb783"), labels = c("Regression alone", "Final model")) +
+              scale_color_manual("",values = c("#6c72dd", "#4fb783")) +
+              scale_y_continuous(breaks = seq(0, 1, by = 0.25), limits = c(0, 1)) +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 65, hjust = 1), plot.margin = unit(c(0.2, 0.2, 0.2, 1.5), "cm"), legend.position = "top", legend.justification = "center", legend.text = element_text(size = 12)) +
+              guides(color = FALSE, fill = guide_legend(override.aes = list(size = 3))) + 
+              labs(color = "", y = expression(paste("R"^"2")), x = "") 
+p_R2
+png("Figures/AQUACULTURE-Final-VS-RegressionAlone.png", width = 11, height = 8, res = 500, units = "in")
+print(p_R2)
+dev.off()
+
+# Min, max and mean
+min(ResultsRegression$mean[ResultsRegression$variable == "R2_Regression"])
+max(ResultsRegression$mean[ResultsRegression$variable == "R2_Regression"])
+mean(ResultsRegression$mean[ResultsRegression$variable == "R2_Regression"])
+sd(ResultsRegression$mean[ResultsRegression$variable == "R2_Regression"])
+min(ResultsRegression$mean[ResultsRegression$variable == "R2_Final"])
+max(ResultsRegression$mean[ResultsRegression$variable == "R2_Final"])
+mean(ResultsRegression$mean[ResultsRegression$variable == "R2_Final"])
+sd(ResultsRegression$mean[ResultsRegression$variable == "R2_Final"])
+
+
+# False positive and negative
+# Before
+FPBefore <- Results2[Results2$variable == "FPBefore",]
+FNBefore <- Results2[Results2$variable == "FNBefore",]
+FPBefore <- FPBefore %>% group_by(OTU) %>% summarise_at(.vars = names(.)[4], .funs = c(mean = "mean", sd = "sd"))
+FNBefore <- FNBefore %>% group_by(OTU) %>% summarise_at(.vars = names(.)[4], .funs = c(mean = "mean", sd = "sd"))
+Before <- left_join(FPBefore, FNBefore, by = c("OTU"))
+colnames(Before) <- c("OTU", "meanFP_Before", "sdFP_Before", "meanFN_Before", "sdFNv")
+# After
+FPAfter <- Results2[Results2$variable == "FPAfter",]
+FNAfter <- Results2[Results2$variable == "FNAfter",]
+FPAfter <- FPAfter %>% group_by(OTU) %>% summarise_at(.vars = names(.)[4], .funs = c(mean = "mean", sd = "sd"))
+FNAfter <- FNAfter %>% group_by(OTU) %>% summarise_at(.vars = names(.)[4], .funs = c(mean = "mean", sd = "sd"))
+After <- left_join(FPAfter, FNAfter, by = c("OTU"))
+colnames(After) <- c("OTU", "meanFP_After", "sdFP_After", "meanFN_After", "sdFN_After")
+# Combine
+BeforeAfter <- left_join(Before, After, by = c("OTU"))
+# Average before
+min(BeforeAfter$meanFP_Before)
+max(BeforeAfter$meanFP_Before)
+mean(BeforeAfter$meanFP_Before)
+sd(BeforeAfter$meanFP_Before)
+min(BeforeAfter$meanFP_After)
+max(BeforeAfter$meanFP_After)
+mean(BeforeAfter$meanFP_After)
+sd(BeforeAfter$meanFP_After)
+
+min(BeforeAfter$meanFN_Before)
+max(BeforeAfter$meanFN_Before)
+mean(BeforeAfter$meanFN_Before)
+sd(BeforeAfter$meanFN_Before)
+min(BeforeAfter$meanFN_After)
+max(BeforeAfter$meanFN_After)
+mean(BeforeAfter$meanFN_After)
+sd(BeforeAfter$meanFN_After)
+
+
+# Plot MAE values
+MeanRegressionPerformanceMAE <- Results2 %>% group_by(OTU, variable) %>% summarise_at(.vars = names(.)[4], .funs = c(mean = "mean", sd = "sd"))
+MeanRegressionPerformanceMAE <- left_join(Results2, MeanRegressionPerformanceMAE, by = c("OTU", "variable"))
+MeanRegressionPerformanceMAE <- MeanRegressionPerformanceMAE %>% dplyr::filter(variable %in% c("MAE_Final", "MAE_Regression", "nMAE_Final", "nMAE_Regression"))
+taxonomy.np.ns$OTU <- rownames(taxonomy.np.ns)
+MeanRegressionPerformanceMAE <- left_join(MeanRegressionPerformanceMAE, taxonomy.np.ns, by = c("OTU"))
+MeanRegressionPerformanceMAE$Label <- paste(MeanRegressionPerformanceMAE$OTU, " (", MeanRegressionPerformanceMAE$Genus, ")", sep = "")
+MeanRegressionPerformanceMAE$Label <- factor(MeanRegressionPerformanceMAE$Label, levels =  levels(ResultsRegression$Label))
+
+p_MAE <- MeanRegressionPerformanceMAE %>%
+              dplyr::filter(variable %in% c("MAE_Final", "MAE_Regression")) %>%
+              ggplot(data = ., aes(x = Label, y = 100*value, fill = variable)) +
+              geom_errorbar(aes(x = Label, ymin = 100*mean, ymax = 100*mean, color = variable), width = 0.8, size = 1) +
+              geom_point(shape = 21) +
+              scale_fill_manual("", values = c("#6c72dd", "#4fb783"), labels = c("Model performance", "Final pipeline performance")) +
+              scale_color_manual("", values = c("#6c72dd", "#4fb783")) +
+              scale_y_continuous(breaks = seq(0, 10, by = 2.5)) +
+              guides(fill = guide_legend(override.aes = list(size = 5))) + 
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 65, hjust = 1), plot.margin = unit(c(0.2, 0.2, 0.2, 2), "cm"), legend.position = "bottom", legend.justification = "center", legend.text = element_text(size = 14)) +
+              guides(color = FALSE, fill = guide_legend(override.aes = list(size = 3))) + 
+              labs(color = "", y = "MAE", x = "")
+print(p_MAE)
+
+# Stat
+100*mean(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Regression"])
+100*sd(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Regression"])
+100*min(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Regression"])
+100*max(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Regression"])
+100*mean(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Final"])
+100*sd(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Final"])
+100*min(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Final"])
+100*max(MeanRegressionPerformanceMAE$value[MeanRegressionPerformanceMAE$variable == "MAE_Final"])
+```
+
+#### Classifier
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Calculate false positive and false negative rates
+Results <- NULL
+for (i in unique(PredictionsPerFold$OTU)){
+  for (j in unique(PredictionsPerFold$rep)){
+    # Select the predictions from this repeat of the selected fold
+    SelectedSet <- PredictionsPerFold[PredictionsPerFold$OTU == i & PredictionsPerFold$rep == j,]
+    SelectedSet$CombinedClass <- "Absent"
+    SelectedSet$CombinedClass[SelectedSet$Combined > 0.01] <- "Present"
+    # Accuracy
+    Accuracy_Classifier <- sum(SelectedSet$PredictedClass == SelectedSet$TrueClass)/length(SelectedSet$TrueClass)
+    Accuracy_Final <- sum(SelectedSet$CombinedClass == SelectedSet$TrueClass)/length(SelectedSet$TrueClass)
+    # False positive: Negatives with positive outcome/All negatives 
+    NrFalsePositive <- length(SelectedSet$X[SelectedSet$TrueClass == "Absent" & SelectedSet$PredictedClass == "Present"])
+    NrTotalTrueAbsent <- length(SelectedSet$X[SelectedSet$TrueClass == "Absent"])
+    FalsePositiveRate <- NrFalsePositive/NrTotalTrueAbsent
+    # False negative
+    NrFalseNegative <- length(SelectedSet$X[SelectedSet$TrueClass == "Present" & SelectedSet$PredictedClass == "Absent"])
+    NrTotalTruePresent <- length(SelectedSet$X[SelectedSet$TrueClass == "Present"])
+    FalseNegativeRate <- NrFalseNegative/NrTotalTruePresent
+    # Save results
+    Results <- rbind.data.frame(Results, cbind.data.frame(i, j, Accuracy_Classifier, Accuracy_Final, NrFalsePositive, NrFalseNegative, FalsePositiveRate, FalseNegativeRate))
+  }
+}
+colnames(Results)[1:2] <- c("OTU", "rep")
+Results <- Results[complete.cases(Results),]
+Results <- melt(Results, id.vars = c("OTU", "rep"))
+
+
+# Sort the dataframe according to average performance
+MeanClassifierFPFN <- Results %>% group_by(OTU, variable) %>% summarise_at(.vars = names(.)[4],.funs = c(mean = "mean", sd = "sd"))
+MeanClassifierFPFN <- left_join(Results, MeanClassifierFPFN, by = c("OTU", "variable"))
+MeanClassifierFPFN <- MeanClassifierFPFN %>% dplyr::filter(variable %in% c("NrFalsePositive", "NrFalseNegative"))
+taxonomy.np.ns$OTU <- rownames(taxonomy.np.ns)
+MeanClassifierFPFN <- left_join(MeanClassifierFPFN, taxonomy.np.ns, by = c("OTU"))
+MeanClassifierFPFN$Label <- paste(MeanClassifierFPFN$OTU, " (", MeanClassifierFPFN$Genus, ")", sep = "")
+
+
+# Split for more clear visualisation
+p_FPFN1 <- MeanClassifierFPFN %>% 
+              dplyr::filter(variable %in% c("NrFalsePositive", "NrFalseNegative")) %>%
+              dplyr::filter(OTU %in% unique(MeanClassifierFPFN$OTU)[1:15]) %>%
+              ggplot(data = ., aes(x = OTU, y = value, fill = variable)) +
+              geom_errorbar(aes(x = OTU, ymin = mean, ymax = mean, color = variable), size = 1, width = 0.5) +
+              geom_point(shape = 21, alpha = 1) +
+              stat_compare_means(tip.length = 0.01,
+                                 method = "wilcox.test",
+                                 label = "p.format",
+                                 size = 3) +
+              scale_fill_manual("",values = c("#434982", "#4fb783"), labels = c("False positive", "False negative")) + 
+              scale_color_manual("",values = c("#434982", "#4fb783")) +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), legend.justification = "center",  legend.position = "top", strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+              guides(color = FALSE, fill = guide_legend(override.aes = list(size = 4))) + 
+              labs(color = "", y = "Nr. of samples", x = "") +
+              scale_y_continuous(limits = c(0, 25))
+p_FPFN2 <- MeanClassifierFPFN %>% 
+              dplyr::filter(variable %in% c("NrFalsePositive", "NrFalseNegative")) %>%
+              dplyr::filter(OTU %in% unique(MeanClassifierFPFN$OTU)[16:30]) %>%
+              ggplot(data = ., aes(x = OTU, y = value, fill = variable)) +
+              geom_errorbar(aes(x = OTU, ymin = mean, ymax = mean, color = variable), size = 1, width = 0.5) +
+              geom_point(shape = 21, alpha = 1) +
+              stat_compare_means(tip.length = 0.01,
+                                 method = "wilcox.test",
+                                 label = "p.format",
+                                 size = 3) +
+              scale_fill_manual("",values = c("#434982", "#4fb783"), labels = c("False positive", "False negative")) + 
+              scale_color_manual("",values = c("#434982", "#4fb783")) +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+              guides(color = FALSE, fill = FALSE) + 
+              labs(color = "", y = "Nr. of samples", x = "") +
+              scale_y_continuous(limits = c(0, 25))
+p_FPFN3 <- MeanClassifierFPFN %>% 
+              dplyr::filter(variable %in% c("NrFalsePositive", "NrFalseNegative")) %>%
+              dplyr::filter(OTU %in% unique(MeanClassifierFPFN$OTU)[31:50]) %>%
+              ggplot(data = ., aes(x = OTU, y = value, fill = variable)) +
+              geom_errorbar(aes(x = OTU, ymin = mean, ymax = mean, color = variable), size = 1, width = 0.5) +
+              geom_point(shape = 21, alpha = 1) +
+              stat_compare_means(tip.length = 0.01,
+                                 method = "wilcox.test",
+                                 label = "p.format",
+                                 size = 3) +
+              scale_fill_manual("",values = c("#434982", "#4fb783"), labels = c("False positive", "False negative")) + 
+              scale_color_manual("",values = c("#434982", "#4fb783")) +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+              guides(color = FALSE, fill = FALSE) + 
+              labs(color = "", y = "Nr. of samples", x = "") +
+              scale_y_continuous(limits = c(0, 25))
+
+g1 <- plot_grid(p_FPFN1, p_FPFN2, p_FPFN3, ncol = 1, nrow = 3, scale = 0.95)
+g1
+ggsave(file = "Figures/AQUACULTURE-FPFN.png", width = 10, height = 12, dpi = 300, units = "in", g1)
+
+
+# Plot model accuracies of the classifier alone
+# Sort the dataframe according to average performance
+MeanClassifierPerformance <- Results %>% group_by(OTU, variable) %>% summarise_at(.vars = names(.)[4],.funs = c(mean = "mean", sd = "sd"))
+Results <- left_join(Results, MeanClassifierPerformance, by = c("OTU", "variable"))
+ResultsClassifier <- Results %>% dplyr::filter(variable %in% c("Accuracy_Classifier"))
+taxonomy.np.ns$OTU <- rownames(taxonomy.np.ns)
+ResultsClassifier <- left_join(ResultsClassifier, taxonomy.np.ns, by = c("OTU"))
+ResultsClassifier$Label <- paste(ResultsClassifier$OTU, " (", ResultsClassifier$Genus, ")", sep = "")
+ResultsClassifier <- ResultsClassifier[order(-ResultsClassifier$mean),] 
+ResultsClassifier$Label <- factor(ResultsClassifier$Label, levels = unique(ResultsClassifier$Label))
+# Plot
+p_Accuracy <- ResultsClassifier %>% 
+              dplyr::filter(variable %in% c("Accuracy_Classifier")) %>% 
+              ggplot(data = ., aes(x = Label, y = 100*value)) +
+              geom_errorbar(aes(x = Label, ymin = 100*mean, ymax = 100*mean), color = "#6c72dd", width = 0.8) +
+              geom_point(shape = 21, fill = "#6c72dd") +
+              geom_hline(yintercept = 50, color = "#4fb783") +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 65, hjust = 1), plot.margin = unit(c(0.2, 0.2, 0.2, 2), "cm")) +
+              labs(color = "", y = "Accuracy (%)", x = "") +
+              guides(color = FALSE, fill = FALSE) + 
+              scale_y_continuous(limits = c(0, 100))
+print(p_Accuracy)
+png("Figures/AQUACULTURE-Accuracy.png", width = 9, height = 6, res = 500, units = "in")
+print(p_Accuracy)
+dev.off()
+
+
+# Change order to match regression for plot
+ResultsClassifier$Label <- factor(ResultsClassifier$Label, levels = unique(ResultsRegression$Label))
+p_AccuracyII <- ResultsClassifier %>% 
+              dplyr::filter(variable %in% c("Accuracy_Classifier")) %>% 
+              ggplot(data = ., aes(x = Label, y = 100*value)) +
+              geom_errorbar(aes(x = Label, ymin = 100*mean, ymax = 100*mean), color = "#6c72dd", width = 0.8) +
+              geom_point(shape = 21, fill = "#6c72dd") +
+              geom_hline(yintercept = 50, color = "#5b5b5b") + 
+              scale_y_continuous(breaks = seq(0, 100, by = 25)) +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 65, hjust = 1), plot.margin = unit(c(0.2, 0.2, 0.2, 2), "cm")) +
+              labs(color = "", y = "Accuracy (%)", x = "") +
+              guides(color = FALSE, fill = FALSE) + 
+              scale_y_continuous(limits = c(0, 100))
+print(p_AccuracyII)
+
+
+# Minimal and maximal accuracy
+min(MeanClassifierPerformance$mean[MeanClassifierPerformance$variable == "Accuracy_Classifier"])
+max(MeanClassifierPerformance$mean[MeanClassifierPerformance$variable == "Accuracy_Classifier"])
+mean(MeanClassifierPerformance$mean[MeanClassifierPerformance$variable == "Accuracy_Classifier"])
+sd(MeanClassifierPerformance$mean[MeanClassifierPerformance$variable == "Accuracy_Classifier"])
+```
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Plot AUC values
+PerformanceDataset <- read.csv("Results/PerformanceDataset_NS.csv")
+PerformanceDataset <- PerformanceDataset[c("OTUOfInterest", "AUC_NS")]
+MeanAUC <- PerformanceDataset %>% group_by(OTUOfInterest) %>% summarise_at(.vars = names(.)[2], .funs = c(mean = "mean", sd = "sd"))
+PerformanceDataset <- left_join(PerformanceDataset, MeanAUC, by = c("OTUOfInterest"))
+
+# Add taxonomy
+PerformanceDataset <- left_join(PerformanceDataset, taxonomy.np.ns, by = c("OTUOfInterest" = "OTU"))
+PerformanceDataset$Label <- paste(PerformanceDataset$OTU, " (", PerformanceDataset$Genus, ")", sep = "")
+
+# Change order to match regression for plot
+PerformanceDataset$Label <- factor(PerformanceDataset$Label, levels = unique(ResultsRegression$Label))
+p_AUC <- PerformanceDataset %>% 
+              ggplot(data = ., aes(x = Label, y = AUC_NS)) +
+              geom_errorbar(aes(x = Label, ymin = mean, ymax = mean), color = "#6c72dd", width = 0.8) +
+              geom_point(shape = 21, fill = "#6c72dd") +
+              geom_hline(yintercept = 0.5, color = "#5b5b5b") + 
+              scale_y_continuous(breaks = seq(0, 1, by = 0.25), limits = c(0, 1)) +
+              theme_cowplot() +
+              theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1), axis.text.x = element_text(angle = 65, hjust = 1), plot.margin = unit(c(0.2, 0.2, 0.2, 2), "cm")) +
+              labs(color = "", y = "AUC", x = "") +
+              guides(color = FALSE, fill = FALSE)
+print(p_AUC)
+
+
+min(PerformanceDataset$AUC_NS[!is.na(PerformanceDataset$AUC_NS)])
+max(PerformanceDataset$AUC_NS[!is.na(PerformanceDataset$AUC_NS)])
+mean(PerformanceDataset$AUC_NS[!is.na(PerformanceDataset$AUC_NS)])
+sd(PerformanceDataset$AUC_NS[!is.na(PerformanceDataset$AUC_NS)])
+```
+
+#### Combined figure for regression and classification
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+p_AUCAdj <- p_AUC + theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+p_AccAdj <- p_AccuracyII + theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+p_R2Adj <- p_R2 + theme(axis.title.x = element_blank(), axis.text.x = element_blank(), legend.position = "none")
+g1 <- plot_grid(p_AccAdj, p_AUCAdj, p_R2Adj, p_MAE, align = 'v', axis = 'l', ncol = 1, nrow = 4, rel_heights = c(0.5, 0.5, 0.5, 1.3), scale = 1, labels = c("A", "B", "C", "D"))
+ggsave(file = "Figures/AQUACULTURE-PerformanceTop50.png", width = 10, height = 14, dpi = 300, units = "in", g1)
+```
+
+#### Difference when individual tanks are used for validation
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Not per tank
+PredictionsPerFold <- read.csv("Results/PredictionsPerFold_NS_NoSort.csv")
+shared.t.ns.rel <- sweep(shared.t.ns, 2, colSums(shared.t.ns), `/`)
+shared.t.ns.rel <- shared.t.ns.rel[NonSorted]
+Results <- NULL
+for (i in unique(PredictionsPerFold$OTU)){
+  for (j in unique(PredictionsPerFold$rep)){
+    # Select the predictions from this repeat of the selected fold
+    SelectedSet <- PredictionsPerFold[PredictionsPerFold$OTU == i & PredictionsPerFold$rep == j,]
+    # R2
+    R2_Regression <- R2(SelectedSet$Regression, SelectedSet$TrueValue)
+    R2_Final <- R2(SelectedSet$Combined, SelectedSet$TrueValue)
+    # MAE
+    MAE_Regression <- MAE(SelectedSet$Regression, SelectedSet$TrueValue)
+    MAE_Final <- MAE(SelectedSet$Combined, SelectedSet$TrueValue)
+    nMAE_Regression <- MAE(SelectedSet$Regression, SelectedSet$TrueValue)/mean(as.matrix(shared.t.ns.rel[i,]))
+    nMAE_Final <- MAE(SelectedSet$Combined, SelectedSet$TrueValue)/mean(as.matrix(shared.t.ns.rel[i,]))
+    # False positive and negative before imposing classifier
+    FPBefore <- dim(SelectedSet[SelectedSet$TrueClass == "Absent" & SelectedSet$Regression >= 0.01,])[1]
+    FNBefore <- dim(SelectedSet[SelectedSet$TrueClass == "Present" & SelectedSet$Regression < 0.01,])[1]
+    # False positive and negative after imposing classifier
+    FPAfter <- dim(SelectedSet[SelectedSet$TrueClass == "Absent" & SelectedSet$Combined >= 0.01,])[1]
+    FNAfter <- dim(SelectedSet[SelectedSet$TrueClass == "Present" & SelectedSet$Combined < 0.01,])[1]
+    # Add absolute abundances
+    SelectedSet$Index <- as.character(SelectedSet$Index)
+    SelectedSet <- left_join(SelectedSet, Subsetphyseqobj[c("OTU", "Sample", "BacterialDensity")], by = c("OTU" = "OTU", "Index" = "Sample"))
+    SelectedSet$CombinedAbsolute <- SelectedSet$Combined*SelectedSet$BacterialDensity
+    SelectedSet$TrueValueAbsolute <- SelectedSet$TrueValue*SelectedSet$BacterialDensity
+    R2_Final_Absolute <- R2(SelectedSet$CombinedAbsolute, SelectedSet$TrueValueAbsolute)
+    # Save results
+    Results <- rbind.data.frame(Results, cbind.data.frame(i, j, R2_Regression, R2_Final, MAE_Regression, MAE_Final, nMAE_Regression, nMAE_Final, FPBefore, FNBefore, FPAfter, FNAfter, R2_Final_Absolute))
+  }
+}
+colnames(Results)[1:2] <- c("OTU", "rep")
+Results <- Results[complete.cases(Results),]
+Results <- melt(Results, id.vars = c("OTU", "rep"))
+NotPerTank <- Results
+
+
+# Per tank
+PredictionsPerFold <- read.csv("Results/PredictionsPerFold_NS_1TankAsTest.csv")
+shared.t.ns.rel <- sweep(shared.t.ns, 2, colSums(shared.t.ns), `/`)
+shared.t.ns.rel <- shared.t.ns.rel[NonSorted]
+Results <- NULL
+for (i in unique(PredictionsPerFold$OTU)){
+  for (j in unique(PredictionsPerFold$rep)){
+    # Select the predictions from this repeat of the selected fold
+    SelectedSet <- PredictionsPerFold[PredictionsPerFold$OTU == i & PredictionsPerFold$rep == j,]
+    # R2
+    R2_Regression <- R2(SelectedSet$Regression, SelectedSet$TrueValue)
+    R2_Final <- R2(SelectedSet$Combined, SelectedSet$TrueValue)
+    # MAE
+    MAE_Regression <- MAE(SelectedSet$Regression, SelectedSet$TrueValue)
+    MAE_Final <- MAE(SelectedSet$Combined, SelectedSet$TrueValue)
+    nMAE_Regression <- MAE(SelectedSet$Regression, SelectedSet$TrueValue)/mean(as.matrix(shared.t.ns.rel[i,]))
+    nMAE_Final <- MAE(SelectedSet$Combined, SelectedSet$TrueValue)/mean(as.matrix(shared.t.ns.rel[i,]))
+    # False positive and negative before imposing classifier
+    FPBefore <- dim(SelectedSet[SelectedSet$TrueClass == "Absent" & SelectedSet$Regression >= 0.01,])[1]
+    FNBefore <- dim(SelectedSet[SelectedSet$TrueClass == "Present" & SelectedSet$Regression < 0.01,])[1]
+    # False positive and negative after imposing classifier
+    FPAfter <- dim(SelectedSet[SelectedSet$TrueClass == "Absent" & SelectedSet$Combined >= 0.01,])[1]
+    FNAfter <- dim(SelectedSet[SelectedSet$TrueClass == "Present" & SelectedSet$Combined < 0.01,])[1]
+    # Add absolute abundances
+    SelectedSet$Index <- as.character(SelectedSet$Index)
+    SelectedSet <- left_join(SelectedSet, Subsetphyseqobj[c("OTU", "Sample", "BacterialDensity")], by = c("OTU" = "OTU", "Index" = "Sample"))
+    SelectedSet$CombinedAbsolute <- SelectedSet$Combined*SelectedSet$BacterialDensity
+    SelectedSet$TrueValueAbsolute <- SelectedSet$TrueValue*SelectedSet$BacterialDensity
+    R2_Final_Absolute <- R2(SelectedSet$CombinedAbsolute, SelectedSet$TrueValueAbsolute)
+    # Save results
+    Results <- rbind.data.frame(Results, cbind.data.frame(i, j, R2_Regression, R2_Final, MAE_Regression, MAE_Final, nMAE_Regression, nMAE_Final, FPBefore, FNBefore, FPAfter, FNAfter, R2_Final_Absolute))
+  }
+}
+colnames(Results)[1:2] <- c("OTU", "rep")
+Results <- Results[complete.cases(Results),]
+Results <- melt(Results, id.vars = c("OTU", "rep"))
+PerTank <- Results
+
+
+# Compare
+NotPerTank <- NotPerTank[NotPerTank$variable == "R2_Final",]
+NotPerTank <- NotPerTank[,c("OTU", "variable", "value")]
+mean(NotPerTank$value)
+sd(NotPerTank$value)
+
+PerTank <- PerTank[PerTank$variable == "R2_Final",]
+PerTank <- PerTank[,c("OTU", "variable", "value")]
+mean(PerTank$value)
+sd(PerTank$value)
+
+Join <- left_join(NotPerTank, PerTank, by = c("OTU"))
+t <- as.data.frame(Join$value.x-Join$value.y)
+t <- t[!is.na(t)]
+mean(t)
+```
+
+#### Link with feature importances and location of sorting gates
+
+```{r FACS_Gates, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Upload results
+PredictionsPerFold <- read.csv("Results/PredictionsPerFold_NS.csv")
+# For each sample of the sorted subpopulations, check which taxa were present at higher than 1%
+shared.t.ns.rel <- sweep(shared.t.ns, 2, colSums(shared.t.ns), `/`)
+MetadataSubPops <- Metadata[Metadata$Population %in% c("1", "2", "3", "4", "5"),]
+ResultsPresenceSortedPops <- NULL
+for (i in c("1", "2", "3", "4", "5")){
+  SelectedSamples <- MetadataSubPops[MetadataSubPops$Population == i,]
+  SelectedOTUTable <- shared.t.ns.rel[1:50, SelectedSamples$Identifier]
+  SelectedOTUTable <- SelectedOTUTable > 0.01
+  if (!is.null(dim(SelectedOTUTable))){
+    SelectedOTUTable <- (rowSums(SelectedOTUTable) > 1) & (rowSums(SelectedOTUTable)/ncol(SelectedOTUTable) > 0.01)
+  }
+  ResultsPresenceSortedPops <- rbind.data.frame(ResultsPresenceSortedPops, SelectedOTUTable)
+  colnames(ResultsPresenceSortedPops) <- names(SelectedOTUTable)
+}
+```
+
+```{r FACS_Gates, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+param_sort <- c("SSC-H", "FITC-H")
+
+pGs_1 <- matrix(c(7.8,9.8,9.8,7.8,
+            10.6,10.6,12,12),
+            ncol = 2,
+            nrow = 4)
+colnames(pGs_1) <- param_sort
+pGs_1 <- polygonGate(.gate = pGs_1)
+
+pGs_2 <- matrix(c(7.2,9.8,9.8,7.2,
+            9.9,9.9,10.5,10.5),
+            ncol = 2,
+            nrow = 4)
+colnames(pGs_2) <- param_sort
+pGs_2 <- polygonGate(.gate = pGs_2)
+
+pGs_3 <- matrix(c(7.2,6,6,7.2,
+            10,10,10.8,10.8),
+            ncol = 2,
+            nrow = 4)
+colnames(pGs_3) <- param_sort
+pGs_3 <- polygonGate(.gate = pGs_3)
+
+pGs_4 <- matrix(c(7.2,5,5,8.5,8.5,7.2,
+             10,10,8.6,8.6,9.9,9.9),
+             ncol = 2, 
+             nrow = 6)
+colnames(pGs_4) <- param_sort
+pGs_4 <- polygonGate(.gate = pGs_4)
+
+
+pGs_5 <- matrix(c(6,7,7,6,
+            7.5,7.5,8.5,8.5),
+            ncol = 2,
+            nrow = 4)
+colnames(pGs_5) <- param_sort
+pGs_5 <- polygonGate(.gate = pGs_5)
+
+pGs_6 <- matrix(c(2.8,4.5,4.5,2.8,
+            7.6,7.6,8.7,8.7),
+            ncol = 2,
+            nrow = 4)
+colnames(pGs_6) <- param_sort
+pGs_6 <- polygonGate(.gate = pGs_6)
+
+# Convert gates so they can be used as input for ggplot
+df1 <- fortify(pGs_1)/maxval
+df2 <- fortify(pGs_2)/maxval
+df3 <- fortify(pGs_3)/maxval
+df4 <- fortify(pGs_4)/maxval
+df5 <- fortify(pGs_5)/maxval
+```
+
+```{r PlotFeatures_RandomForest, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Upload results
+PerformancePerFold <- read.csv("Results/PerformancePerFold_NS.csv")
+
+# Feature importances classifier
+ImporancesClassifier <- cbind.data.frame(PerformancePerFold$OTU, PerformancePerFold[, grepl("_Class", names(PerformancePerFold))])
+colnames(ImporancesClassifier)[1] <- "OTU"
+MeanImporancesClassifier <- ImporancesClassifier %>%
+                            group_by(OTU) %>%
+                            summarise(across(everything(), list(mean)))
+Taxa <- MeanImporancesClassifier$OTU
+MeanImporancesClassifier <- t(MeanImporancesClassifier[!colnames(MeanImporancesClassifier) == "OTU"])
+colnames(MeanImporancesClassifier) <- paste("Class_", Taxa, sep = "")
+MeanImporancesClassifier <- as.data.frame(MeanImporancesClassifier)
+MeanImporancesClassifier$GMM <- gsub("_Class_1", "", rownames(MeanImporancesClassifier))
+# Add a column with TRUE FALSE to evaluate which GMMs are included in the model
+MeanImporancesClassifier <- cbind.data.frame(MeanImporancesClassifier, MeanImporancesClassifier[colnames(MeanImporancesClassifier)[!colnames(MeanImporancesClassifier) == "GMM"]] > 0)
+colnames(MeanImporancesClassifier)[(length(Taxa)+2):(2*length(Taxa)+1)] <- paste(colnames(MeanImporancesClassifier)[(length(Taxa)+2):(2*length(Taxa)+1)], "_LOGIC", sep = "")
+
+# Feature importances regression
+ImporancesRegression <- cbind.data.frame(PerformancePerFold$OTU, PerformancePerFold[, grepl("_Reg", names(PerformancePerFold))])
+colnames(ImporancesRegression)[1] <- "OTU"
+MeanImporancesRegression <- ImporancesRegression %>%
+                            group_by(OTU) %>%
+                            summarise(across(everything(), list(mean)))
+Taxa <- MeanImporancesRegression$OTU
+MeanImporancesRegression <- t(MeanImporancesRegression[!colnames(MeanImporancesRegression) == "OTU"])
+colnames(MeanImporancesRegression) <- paste("Reg_", Taxa, sep = "")
+MeanImporancesRegression <- as.data.frame(MeanImporancesRegression)
+MeanImporancesRegression$GMM <- gsub("_Reg_1", "", rownames(MeanImporancesRegression))
+# Add a column with TRUE FALSE to evaluate which GMMs are included in the model
+MeanImporancesRegression <- cbind.data.frame(MeanImporancesRegression, MeanImporancesRegression[colnames(MeanImporancesRegression)[!colnames(MeanImporancesRegression) == "GMM"]] > 0)
+colnames(MeanImporancesRegression)[(length(Taxa)+2):(2*length(Taxa)+1)]  <- paste(colnames(MeanImporancesRegression)[(length(Taxa)+2):(2*length(Taxa)+1)] , "_LOGIC", sep = "")
+
+# Make a pooled sample and add the corresponding GMM identities per cell
+Pooled <- FCS_pool(flowData_transformed, stub = "*")
+PooledSubsampled <- FCS_resample(Pooled, replace = TRUE, sample = 500000)
+PooledSubsampled <- PooledSubsampled[, paramGMM]
+grid <- PooledSubsampled[[1]]@exprs
+pred <- predict(gmm_clust, grid)
+grid <- cbind.data.frame(grid, paste("GMM", pred$classification, sep = ""))
+colnames(grid)[length(paramGMM)+1] <- "Classification"
+# Add the importances to each of the cells according to the GMM to which they belong
+grid <- left_join(grid, MeanImporancesClassifier, by = c("Classification" = "GMM"))
+grid <- left_join(grid, MeanImporancesRegression, by = c("Classification" = "GMM"))
+
+
+# for each otu plot the feature importances and gates in which they were detected
+for (i in colnames(ResultsPresenceSortedPops)[1:10]){
+     Detected <- as.vector(ResultsPresenceSortedPops[i])
+     colnames(Detected) <- "det"
+     # Make sizes of the boxes in which OTU is found bigger
+     Sizes <- rep(0.75, 5)
+     Sizes[Detected$det] <- 2
+     # Make color of the boxes in which OTU is found different
+     Colors <- rep("#707070", 5)
+     Colors[Detected$det] <- "#434982"
+     # Colnames
+     Importance <- paste("Reg_", i , sep = "")
+     # PLot the GMM
+     grid <- grid[order(grid[Importance]),]
+     
+     gridSub <- grid[200000:500000,]
+     p_GMMgrid <- gridSub %>%
+                  ggplot(data = .) + 
+                  geom_point(alpha = 0.3, shape = 16, size = 0.9, aes_string(y = "`FITC-H`", x = "`SSC-H`", color = Importance)) +
+                  scale_x_continuous(limits = c(0.35, 0.85)) +
+                  scale_y_continuous(limits = c(0.58, 0.95)) +
+                  scale_color_distiller(palette = 'BuPu', direction = 1) +
+                  geom_path(data = df1, aes(x = `SSC-H`, y = `FITC-H`), color = Colors[1], size = Sizes[1]) + 
+                  geom_path(data = df2, aes(x = `SSC-H`, y = `FITC-H`), color = Colors[2], size = Sizes[2]) + 
+                  geom_path(data = df3, aes(x = `SSC-H`, y = `FITC-H`), color = Colors[3], size = Sizes[3]) + 
+                  geom_path(data = df4, aes(x = `SSC-H`, y = `FITC-H`), color = Colors[4], size = Sizes[4]) + 
+                  geom_path(data = df5, aes(x = `SSC-H`, y = `FITC-H`), color = Colors[5], size = Sizes[5]) + 
+                  labs(x = "Side scatter", y = "SYBR Green I fluorescence", color = "Importance") +
+                  ggtitle(i) +
+                  theme_cowplot() +
+                  theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet))
+     print(p_GMMgrid) 
+     png(paste( "Figures/AQUACULTURE-Importances-Reg-", i, ".png", sep = ""), width = 6, height = 4.5, res = 500, units = "in")
+     print(p_GMMgrid)
+     dev.off()
+}
+```
+
+#### Link feature importances and taxonomic dissimilarity
+
+```{r RidgeRegression, echo = FALSE, dpi = 500, fig.width = 12, fig.height = 8, dev = c("png"), message = FALSE, warning = FALSE, cache = TRUE}
+# Generate a phylogenetic distances between the OTUs
+    PredictionsPerFold <- read.csv("Results/PredictionsPerFold_NS.csv")
+    # Read the fasta file with the (aligned) reference sequences
+    RefSeqs <- Biostrings::readDNAStringSet(filepath = "Data/Aquaculture/Illumina/stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.0.03.rep.fasta", format = "fasta")
+    # Only keep the OTU's that were still retained after the scaling
+    RefSeqs <- RefSeqs[which(rownames(shared.t.ns.old) %in% unique(PerformanceDataset$OTU))]
+    length(RefSeqs)
+    # Convert to a DNAbin object to make trees
+    RefSeqs <- as.DNAbin(RefSeqs)
+    # Make labels easier
+    names(RefSeqs) <- str_extract(names(RefSeqs), "Otu[0-9]{5}")
+    # Calculate distances between the sequences
+    Distances <- dist.dna(RefSeqs, model = "TN93") # K80, TN93
+    Taxdist <- as.data.frame(as.matrix(Distances))
+    
+    
+# Similarity of the feature abundances
+        PerformancePerFold <- read.csv("Results/PerformancePerFold_NS.csv")
+        # Feature importances classifier
+        ImporancesClassifier <- cbind.data.frame(PerformancePerFold$OTU, PerformancePerFold[, grepl("_Class", names(PerformancePerFold))])
+        colnames(ImporancesClassifier)[1] <- "OTU"
+        MeanImporancesClassifier <- ImporancesClassifier %>%
+                                    group_by(OTU) %>%
+                                    summarise(across(everything(), list(mean)))
+        Taxa <- MeanImporancesClassifier$OTU
+        MeanImporancesClassifier <- t(MeanImporancesClassifier[!colnames(MeanImporancesClassifier) == "OTU"])
+        colnames(MeanImporancesClassifier) <- Taxa
+        MeanImporancesClassifier <- as.data.frame(MeanImporancesClassifier)
+        MeanImporancesClassifier$GMM <- gsub("_Class_1", "", rownames(MeanImporancesClassifier))
+
+        # Feature importances regression
+        ImporancesRegression <- cbind.data.frame(PerformancePerFold$OTU, PerformancePerFold[, grepl("_Reg", names(PerformancePerFold))])
+        colnames(ImporancesRegression)[1] <- "OTU"
+        MeanImporancesRegression <- ImporancesRegression %>%
+                                    group_by(OTU) %>%
+                                    summarise(across(everything(), list(mean)))
+        Taxa <- MeanImporancesRegression$OTU
+        MeanImporancesRegression <- t(MeanImporancesRegression[!colnames(MeanImporancesRegression) == "OTU"])
+        colnames(MeanImporancesRegression) <- Taxa
+        MeanImporancesRegression <- as.data.frame(MeanImporancesRegression)
+        MeanImporancesRegression$GMM <- gsub("_Reg_1", "", rownames(MeanImporancesRegression))
+
+        # Calculate similarity feature importances
+        impdis <- vegdist(t(MeanImporancesClassifier[!colnames(MeanImporancesClassifier) == "GMM"]), method = "bray") # binary = "TRUE"
+        impdis <- as.data.frame(as.matrix(impdis))
+
+# Combine feature importances dissimilarity and taxonomic distance
+Results <- NULL
+for (i in 1:dim(impdis)[1]){
+  for (j in 2:dim(impdis)[1]){
+    # Selected OTUs
+    Taxon1 <- colnames(impdis)[i]
+    Taxon2 <- colnames(impdis)[j]
+    # Get taxonomic distance
+    Taxonomic <- Taxdist[Taxon1, Taxon2]
+    # Get dissimilarity feature importances
+    Features <- impdis[Taxon1, Taxon2]
+    # Save results
+    Results <- rbind.data.frame(Results, cbind.data.frame(Taxon1, Taxon2, Taxonomic, Features))
+  }
+}
+# Remove taxon combined with itself
+Results <- Results[!Results$Taxon1 == Results$Taxon2,]
+Results$Features <- 1-Results$Features
+
+# Plot
+LM <- lm(Features ~ Taxonomic, data = Results) 
+p <- ggplot(Results, aes(x = Taxonomic, y = Features)) +
+         geom_point(shape = 21, size = 2, size = 0.9, alpha = 0.7, fill = SingleColor) +
+         geom_smooth(method = 'lm', formula = y ~ x, col = "black") +
+         labs(x = "Phylogenetic distance", y = "Feature importance similarity") +
+         annotate(geom = "text", x = 0.35, y = 0.6, label = paste0("Adj.R.sq. = ", format(summary(LM)$r.squared, digits = 2), "\nCp = ", formatC(cor(Results$Taxonomic, Results$Features), format = "f", digits = 2), "\nn = ", dim(Results)[1]), hjust = 0) + 
+         theme_cowplot() +
+         theme(panel.grid.major = element_line(size = 0.3, linetype = 'solid', colour = ColorBlocksFacet), strip.background = element_rect(color = ColorBlocksFacet, fill = ColorBlocksFacet, size = 1)) 
+print(p)
+png("Figures/AQUACULTURE-Phylogeny-FeatureSimilarity.png", width = 6, height = 4.5, res = 500, units = "in")
+print(p)
+dev.off()
+```
+
+# Reactor dataset (validation 1)
+
+## Upload and process Illumina data
+
+## Upload and process FCM data
+
+## Combine Illumina and FCM data
+
+## Train models
+
+# Mock community (validation 1)
+
+## Upload and process Illumina data
+
+## Upload and process FCM data
+
+## Combine Illumina and FCM data
+
+## Train models
+
+
+
+
