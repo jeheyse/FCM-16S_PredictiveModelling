@@ -1,6 +1,6 @@
 # FCM-16S_PredictiveModelling (updating)
 
-The full analysis of the submitted paper [***Predicting the presence and abundance of bacterial taxa in environmental communities through flow cytometric fingerprinting***](https://github.com/jeheyse/FCM-16S_PredictiveModelling) by Jasmine Heyse, Florian Schattenberg, Susann Müller, Willem Waegeman, Nico Boon and Ruben Props.
+The full analysis of the submitted paper [***Predicting the presence and abundance of bacterial taxa in environmental communities through flow cytometric fingerprinting***](https://github.com/jeheyse/FCM-16S_PredictiveModelling) by Jasmine Heyse, Florian Schattenberg, Peter Rubbens, Susann Müller, Willem Waegeman, Nico Boon and Ruben Props.
 
 Before starting the analysis, the FCM data should be dowloaded from FlowRepository and the raw sequence data can be dowloaded from the NCBI Sequence Read Archive (SRA). Three datasets are included in this study:
 
