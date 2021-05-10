@@ -11,11 +11,7 @@ Before starting the analysis, the FCM data should be dowloaded from FlowReposito
 | Mock | FR-FCM-Z3MC  | Composition in metadata  | [(Cichocki et al., 2020)](https://www.nature.com/articles/s41596-020-0362-0#citeas) |
 
 
-All metadata files are available on this repository.
-
-The analysis commands for the raw Illumina data, using MOTHUR, can be found in _MOTHUR.html_. 
-
-The data analysis for the processed Illumina data and flow cytometry data from all three datasets can be found in _Analysis.html_.
+All metadata files are available on this repository. The analysis commands for the raw Illumina data, using MOTHUR, can be found in _MOTHUR.html_. The data analysis for the processed Illumina data and flow cytometry data from all three datasets can be found in _Analysis.html_.
 
 The final file structure should be: 
 
@@ -28,6 +24,7 @@ The final file structure should be:
 ├── MOTHUR.md
 ├── ConvenienceFunctions.R
 ├── /Metadata
+├── /Figures
 ├── /Results
     ├── /GMMFits
 ├── /Data
